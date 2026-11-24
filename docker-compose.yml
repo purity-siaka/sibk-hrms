@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hrms
+      POSTGRES_PASSWORD: hrms
+      POSTGRES_DB: hrms
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hrms"]
+      interval: 5s
+      retries: 10
+  api:
+    build: ./backend
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://hrms:hrms@db:5432/hrms?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-0123456789abcdef}
+      APP_ENV: ${APP_ENV:-development}
+      CORS_ORIGIN: http://localhost:3000
+      SEED_DEMO: "true"
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe-2026}
+    volumes: [uploads:/data/uploads]
+    ports: ["8080:8080"]
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    depends_on: [api]
+    ports: ["3000:3000"]
+volumes:
+  pgdata:
+  uploads:

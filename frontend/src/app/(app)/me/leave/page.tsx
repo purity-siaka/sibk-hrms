@@ -1,0 +1,55 @@
+"use client";
+
+import { useState } from "react";
+import { ApprovalList, LeavePanel } from "@/components/LeavePanel";
+import { ErrorState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
+import { BlockSkeleton } from "@/components/Skeleton";
+import { Tabs } from "@/components/Tabs";
+import { useAsync } from "@/hooks/useAsync";
+import { api } from "@/lib/api";
+
+export default function MyLeave() {
+  const [tab, setTab] = useState("mine");
+  const mine = useAsync(() => api.leave.me(), []);
+  const approvals = useAsync(() => api.leave.approvals(), []);
+  const reloadAll = () => {
+    mine.reload();
+    approvals.reload();
+  };
+  const canApprove = approvals.data?.canApprove ?? false;
+  const count = approvals.data?.items.length ?? 0;
+  const tabs = [{ key: "mine", label: "My leave" }, ...(canApprove ? [{ key: "approvals", label: "Approvals", badge: count || undefined }] : [])];
+
+  return (
+    <>
+      <PageHeader title="Leave" subtitle="Apply for leave and follow your requests. Weekends and public holidays are not counted." />
+      {canApprove && <Tabs items={tabs} active={tab} onChange={setTab} label="Leave sections" />}
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="space-y-4">
+        {tab === "mine" &&
+          (mine.error ? (
+            <ErrorState error={mine.error} onRetry={mine.reload} />
+          ) : mine.loading && !mine.data ? (
+            <BlockSkeleton lines={8} />
+          ) : (
+            mine.data && (
+              <>
+                <LeavePanel summary={mine.data} onChange={reloadAll} canApply />
+                {mine.data.upcomingHolidays && mine.data.upcomingHolidays.length > 0 && (
+                  <p className="text-sm text-muted">
+                    Next public holidays: {mine.data.upcomingHolidays.map((h) => `${h.name} (${h.date})`).join(", ")}
+                  </p>
+                )}
+              </>
+            )
+          ))}
+        {tab === "approvals" &&
+          (approvals.error ? (
+            <ErrorState error={approvals.error} onRetry={approvals.reload} />
+          ) : (
+            <ApprovalList items={approvals.data?.items ?? []} onChange={reloadAll} empty="You have no leave requests to decide right now." />
+          ))}
+      </div>
+    </>
+  );
+}
