@@ -21,6 +21,15 @@ services:
       CORS_ORIGIN: http://localhost:3000
       SEED_DEMO: "true"
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe-2026}
+      # Email (leave notifications, report export). Leave SMTP_HOST empty to disable; emails are then only logged.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_AUTH: ${SMTP_AUTH:-plain}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-IT Department}
+      HR_MAILBOX: ${HR_MAILBOX:-hr@salaaminvestments.com}
     volumes: [uploads:/data/uploads]
     ports: ["8080:8080"]
   web:

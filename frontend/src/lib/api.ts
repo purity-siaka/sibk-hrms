@@ -23,6 +23,7 @@ import type {
   LeaveBalance,
   LeaveReport,
   LeaveSummary,
+  StaffLeave,
   MeDashboard,
   Paged,
   Policy,
@@ -209,9 +210,9 @@ export const api = {
     forEmployee: (id: number) => request<LeaveSummary>("GET", `/employees/${id}/leave`),
     calc: (from: string, to: string) => request<{ days: number; holidays: string[] }>("GET", "/leave/calc", undefined, { from, to }),
     /** Apply for leave. HR passes employeeId to record leave for someone else. */
-    apply: (b: { type: string; fromDate: string; toDate: string; reason: string }, file?: File | null, employeeId?: number) => {
+    apply: (b: { type: string; fromDate: string; toDate: string; reason: string; trainingTitle?: string; trainingProvider?: string }, file?: File | null, employeeId?: number) => {
       const f = new FormData();
-      Object.entries(b).forEach(([k, v]) => f.append(k, v));
+      Object.entries(b).forEach(([k, v]) => v !== undefined && f.append(k, v));
       if (file) f.append("file", file);
       return upload<Leave>(employeeId ? `/employees/${employeeId}/leave` : "/me/leave", f);
     },
@@ -231,10 +232,12 @@ export const api = {
     list: async (q: { status?: string; type?: string; q?: string; employeeId?: number } & ListQuery) =>
       normPaged(await request<Paged<Leave>>("GET", "/leave", undefined, q)),
     report: async (key: string) => {
-      const r = await request<LeaveReport>("GET", `/leave/reports/${key}`);
+      const r = await request<LeaveReport>("GET", `/leave-reports/${key}`);
       return { ...r, rows: norm(r.rows) };
     },
-    downloadReport: (key: string) => downloadFile(`/leave/reports/${key}`, `leave-${key}.csv`, { format: "csv" }),
+    staff: async () => norm(await request<StaffLeave[]>("GET", "/leave/staff")),
+    emailReport: (key: string) => request<{ sentTo: string }>("POST", `/leave-reports/${key}/email`),
+    downloadReport: (key: string) => downloadFile(`/leave-reports/${key}`, `leave-${key}.csv`, { format: "csv" }),
     updateBalance: (id: number, b: { accruedDays: number; carriedForwardDays: number; doesNotApprove: boolean }) =>
       request<LeaveBalance>("PUT", `/employees/${id}/leave-balance`, b),
     yearEnd: () => request<{ employees: number }>("POST", "/leave/year-end", { confirm: "CARRY FORWARD" }),

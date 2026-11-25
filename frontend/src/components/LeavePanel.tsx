@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Paperclip, Plus } from "lucide-react";
+import { FileText, GraduationCap, Paperclip, Plus } from "lucide-react";
 import { useState } from "react";
 import { ApplyLeaveModal } from "./ApplyLeaveModal";
 import { Button } from "./Button";
@@ -16,6 +16,17 @@ import type { Leave, LeaveSummary } from "@/lib/types";
 
 export function DateRange({ l }: { l: Pick<Leave, "fromDate" | "toDate"> }) {
   return <span>{l.fromDate === l.toDate ? fmtDate(l.fromDate) : `${fmtDate(l.fromDate)} to ${fmtDate(l.toDate)}`}</span>;
+}
+
+/** Leave type; a training application shows its title and provider. */
+export function TypeCell({ l }: { l: Leave }) {
+  if (l.type !== "training") return <span className="font-semibold text-ink">{l.typeLabel}</span>;
+  return (
+    <div>
+      <span className="font-semibold text-ink">Training</span>
+      <p className="text-xs text-muted">{[l.trainingTitle, l.trainingProvider].filter(Boolean).join(", ")}</p>
+    </div>
+  );
 }
 
 /** Request status with the sick-note warning. */
@@ -83,7 +94,7 @@ export function LeavePanel({
   employeeId?: number;
   employeeName?: string;
 }) {
-  const [applying, setApplying] = useState(false);
+  const [applying, setApplying] = useState<null | "leave" | "training">(null);
   const b = summary.balance;
   return (
     <>
@@ -98,9 +109,14 @@ export function LeavePanel({
         padded={false}
         action={
           canApply && (
-            <Button icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setApplying(true)}>
-              {employeeId ? "Record leave" : "Apply for leave"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" icon={<GraduationCap className="h-4 w-4" aria-hidden />} onClick={() => setApplying("training")}>
+                {employeeId ? "Record training" : "Training application"}
+              </Button>
+              <Button icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setApplying("leave")}>
+                {employeeId ? "Record leave" : "Apply for leave"}
+              </Button>
+            </div>
           )
         }
       >
@@ -111,7 +127,7 @@ export function LeavePanel({
             rowKey={(l) => l.id}
             empty={<EmptyState title="No leave requests yet" text="Requests will appear here once submitted." />}
             columns={[
-              { key: "type", header: "Type", render: (l) => <span className="font-semibold text-ink">{l.typeLabel}</span> },
+              { key: "type", header: "Type", render: (l) => <TypeCell l={l} /> },
               { key: "dates", header: "Dates", render: (l) => <DateRange l={l} /> },
               { key: "days", header: "Days", render: (l) => l.days },
               { key: "status", header: "Status", render: (l) => <LeaveStatusCell l={l} /> },
@@ -138,8 +154,9 @@ export function LeavePanel({
         </div>
       </Card>
       <ApplyLeaveModal
-        open={applying}
-        onClose={() => setApplying(false)}
+        open={applying !== null}
+        mode={applying === "training" ? "training" : "leave"}
+        onClose={() => setApplying(null)}
         onDone={onChange}
         employeeId={employeeId}
         employeeName={employeeName}
@@ -163,7 +180,7 @@ export function ApprovalList({ items, onChange, empty }: { items: Leave[]; onCha
               <div>
                 <p className="font-bold text-ink">{l.employeeName}</p>
                 <p className="text-sm text-muted">
-                  {l.typeLabel} leave · <DateRange l={l} /> · <strong className="text-ink">{l.days} {l.days === 1 ? "day" : "days"}</strong>
+                  {l.type === "training" ? `Training: ${l.trainingTitle ?? ""}${l.trainingProvider ? `, ${l.trainingProvider}` : ""}` : `${l.typeLabel} leave`} · <DateRange l={l} /> · <strong className="text-ink">{l.days} {l.days === 1 ? "day" : "days"}</strong>
                 </p>
               </div>
               <LeaveStatusCell l={l} />

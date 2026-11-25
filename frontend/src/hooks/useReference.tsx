@@ -19,6 +19,7 @@ const FALLBACK: Reference = {
     { key: "paternity", label: "Paternity" },
     { key: "compassionate", label: "Compassionate" },
     { key: "unpaid", label: "Unpaid" },
+    { key: "training", label: "Training" },
   ],
 };
 

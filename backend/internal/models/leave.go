@@ -11,7 +11,8 @@ const (
 	LeavePaternity    = "paternity"
 	LeaveCompassion   = "compassionate"
 	LeaveUnpaid       = "unpaid"
-	SickNoteAfterDays = 2.0 // a sick note is expected when a sick leave is longer than this
+	LeaveTraining     = "training" // a training application; never deducted from the balance
+	SickNoteAfterDays = 2.0        // a sick note is expected when a sick leave is longer than this
 )
 
 // LeaveType describes one choice in the leave-type list.
@@ -23,7 +24,7 @@ type LeaveType struct {
 // LeaveTypes lists every valid leave type, in display order.
 var LeaveTypes = []LeaveType{
 	{LeaveAnnual, "Annual"}, {LeaveSick, "Sick"}, {LeaveStudy, "Study"}, {LeaveMaternity, "Maternity"},
-	{LeavePaternity, "Paternity"}, {LeaveCompassion, "Compassionate"}, {LeaveUnpaid, "Unpaid"},
+	{LeavePaternity, "Paternity"}, {LeaveCompassion, "Compassionate"}, {LeaveUnpaid, "Unpaid"}, {LeaveTraining, "Training"},
 }
 
 // LeaveTypeLabel returns the display label of a leave type.
@@ -91,6 +92,8 @@ type LeaveRequest struct {
 	DecidedAt              *time.Time
 	Comment                string `gorm:"size:1000"`
 	CountedInBalance       bool   `gorm:"not null;default:false"` // true once the days were deducted
+	TrainingTitle          string `gorm:"size:200"`
+	TrainingProvider       string `gorm:"size:200"`
 	NoteKey                string `gorm:"size:100"`
 	NoteFileName           string `gorm:"size:255"`
 	NoteContentType        string `gorm:"size:120"`

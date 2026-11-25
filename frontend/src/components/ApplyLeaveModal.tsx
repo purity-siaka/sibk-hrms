@@ -17,13 +17,16 @@ interface Props {
   employeeId?: number;
   employeeName?: string;
   availableDays?: number;
+  /** "training" is a separate application with its own details */
+  mode?: "leave" | "training";
 }
 
-const EMPTY = { type: "annual", fromDate: "", toDate: "", reason: "" };
+const EMPTY = { type: "annual", fromDate: "", toDate: "", reason: "", trainingTitle: "", trainingProvider: "" };
 
 /** Leave application. A sick leave longer than 2 days offers a sick-note attachment. */
-export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeName, availableDays }: Props) {
+export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeName, availableDays, mode = "leave" }: Props) {
   const ref = useReference();
+  const training = mode === "training";
   const [form, setForm] = useState(EMPTY);
   const [file, setFile] = useState<File | null>(null);
   const [days, setDays] = useState<number | null>(null);
@@ -34,13 +37,13 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
 
   useEffect(() => {
     if (!open) {
-      setForm(EMPTY);
+      setForm({ ...EMPTY, type: training ? "training" : "annual" });
       setFile(null);
       setErrors({});
       setFormError("");
       setDays(null);
     }
-  }, [open]);
+  }, [open, training]);
 
   useEffect(() => {
     setDays(null);
@@ -69,7 +72,7 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
     setErrors({});
     setFormError("");
     try {
-      await api.leave.apply(form, sickNote ? file : null, employeeId);
+      await api.leave.apply({ ...form, type: training ? "training" : form.type }, sickNote ? file : null, employeeId);
       onDone();
       onClose();
     } catch (e) {
@@ -83,7 +86,7 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
   return (
     <Modal
       open={open}
-      title={employeeName ? `Record leave for ${employeeName}` : "Apply for leave"}
+      title={training ? (employeeName ? `Record training for ${employeeName}` : "Training application") : employeeName ? `Record leave for ${employeeName}` : "Apply for leave"}
       onClose={onClose}
       size="lg"
       footer={
@@ -92,7 +95,7 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
             Cancel
           </Button>
           <Button loading={busy} onClick={submit} disabled={!form.fromDate || !form.toDate || !form.reason.trim()}>
-            Submit request
+            {training ? "Submit application" : "Submit request"}
           </Button>
         </>
       }
@@ -104,13 +107,20 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
           </p>
         )}
         <FormGrid>
+          {training ? (
+            <Input label="Training name" value={form.trainingTitle} onChange={(e) => set("trainingTitle", e.target.value)} error={errors.trainingTitle} required />
+          ) : (
           <Select label="Leave type" value={form.type} onChange={(e) => set("type", e.target.value)} error={errors.type} required>
-            {ref.leaveTypes.map((t) => (
+            {ref.leaveTypes.filter((t) => t.key !== "training").map((t) => (
               <option key={t.key} value={t.key}>
                 {t.label}
               </option>
             ))}
           </Select>
+          )}
+          {training ? (
+            <Input label="Provider or venue" value={form.trainingProvider} onChange={(e) => set("trainingProvider", e.target.value)} hint="For example the institution and town." />
+          ) : (
           <div className="flex items-end text-sm text-muted">
             {form.type === "annual" && availableDays !== undefined && (
               <p>
@@ -118,6 +128,7 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
               </p>
             )}
           </div>
+          )}
           <Input label="From" type="date" value={form.fromDate} onChange={(e) => set("fromDate", e.target.value)} error={errors.fromDate} required />
           <Input label="To" type="date" value={form.toDate} min={form.fromDate || undefined} onChange={(e) => set("toDate", e.target.value)} error={errors.toDate} required />
         </FormGrid>
@@ -128,7 +139,7 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
             {form.fromDate && form.fromDate < todayISO() && " This leave starts in the past."}
           </p>
         )}
-        <Textarea label="Reason" value={form.reason} onChange={(e) => set("reason", e.target.value)} error={errors.reason} required />
+        <Textarea label={training ? "Purpose and how it helps your work" : "Reason"} value={form.reason} onChange={(e) => set("reason", e.target.value)} error={errors.reason} required />
         {sickNote && (
           <FileDrop
             label="Sick note (doctor's note or hospital slip)"

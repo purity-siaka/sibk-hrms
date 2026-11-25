@@ -66,6 +66,7 @@ const leaves = [
   L(5, 4, "annual", "2026-11-13", "2026-11-16", 2, "approved", "Nicholas Kiganya", "Nicholas Kiganya", "ok"),
   L(6, 9, "annual", "2026-11-20", "2026-11-23", 2, "approved", "Nicholas Kiganya", "Nicholas Kiganya", "ok"),
   L(7, 7, "study", "2026-11-23", "2026-11-26", 4, "approved", "Nicholas Kiganya", "Nicholas Kiganya", "Approved."),
+  L(9, 5, "training", "2026-12-01", "2026-12-03", 3, "approved", "Saad Rahman", "Saad Rahman", "Approved.", { trainingTitle: "AML/CFT Refresher Course", trainingProvider: "Kenya Bankers Association" }),
   L(8, 9, "sick", "2026-12-01", "2026-12-04", 4, "pending", "Nicholas Kiganya", "", "", { needsNote: true, canAttach: true }),
 ];
 const balanceOf = (id) => { const b = bal[id] || [0, 0, 0]; const pend = leaves.filter((l) => l.employeeId === id && l.type === "annual" && l.status === "pending").reduce((a, l) => a + l.days, 0); return { accruedDays: b[0], carriedForwardDays: b[1], takenDays: b[2], pendingDays: pend, remainingDays: b[0] + b[1] - b[2], availableDays: b[0] + b[1] - b[2] - pend, doesNotApprove: false }; };
@@ -103,6 +104,8 @@ http.createServer((req, res) => {
     if (p === "/api/me/leave" && req.method === "POST") { leaves.push(L(leaves.length + 1, me.employeeId, "annual", "2026-12-14", "2026-12-15", 2, "pending", "Nicholas Kiganya", "", "")); return send(res, 201, leaves[leaves.length - 1]); }
     if (p === "/api/me/leave") { const approvals = leaves.filter((l) => forMe(me, l).canDecide); return send(res, 200, { balance: balanceOf(me.employeeId), requests: leaves.filter((l) => l.employeeId === me.employeeId).map((l) => forMe(me, l)), canApprove: me.role !== "employee", pendingApprovals: approvals.length, upcomingHolidays: holidaysList.slice(1, 3) }); }
     if ((m = /^\/api\/employees\/(\d+)\/leave$/.exec(p)) && req.method === "GET") return send(res, 200, { balance: balanceOf(+m[1]), requests: leaves.filter((l) => l.employeeId === +m[1]).map((l) => forMe(me, l)), canApprove: false, pendingApprovals: 0 });
+    if (p === "/api/leave/staff") return send(res, 200, employees.map((e) => { const b = balanceOf(e.id); return { employeeId: e.id, fullName: e.fullName, jobTitle: e.jobTitle, managerName: e.managerName, takenDays: b.takenDays, remainingDays: b.remainingDays, pendingDays: b.pendingDays, outNow: e.id === 7, outNowReason: e.id === 7 ? "Study" : "" }; }));
+    if (/^\/api\/leave\/reports\/[a-z-]+\/email$/.test(p)) return send(res, 200, { sentTo: me.email });
     if (p === "/api/leave/calc") return send(res, 200, { days: wdays(q("from"), q("to")), holidays: [] });
     if (p === "/api/leave/approvals") return send(res, 200, { canApprove: me.role !== "employee", items: leaves.map((l) => forMe(me, l)).filter((l) => l.canDecide) });
     if (p === "/api/leave" && req.method === "GET") { const l = leaves.filter((x) => (!q("status") || x.status === q("status")) && (!q("type") || x.type === q("type")) && (!q("q") || x.employeeName.toLowerCase().includes(q("q").toLowerCase()))).map((x) => forMe(me, x)); return send(res, 200, { items: l, total: l.length }); }
@@ -111,7 +114,7 @@ http.createServer((req, res) => {
     if (p === "/api/leave/year-end") return send(res, 200, { employees: 16 });
     if (p === "/api/holidays") return send(res, 200, holidaysList);
     if (p === "/api/auth/me") return send(res, 200, me);
-    if (p === "/api/reference") return send(res, 200, { documentTypes: docTypes.map(([key, label, required]) => ({ key, label, required: !!required })), employmentTypes: ["permanent", "fixed_term", "temporary", "intern"], employeeStatuses: ["probation", "active", "on_notice", "exited"], applicantStages: stages, ownerRoles: ["hr", "it", "finance", "line_manager"], leaveTypes: ["annual", "sick", "study", "maternity", "paternity", "compassionate", "unpaid"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1) })) });
+    if (p === "/api/reference") return send(res, 200, { documentTypes: docTypes.map(([key, label, required]) => ({ key, label, required: !!required })), employmentTypes: ["permanent", "fixed_term", "temporary", "intern"], employeeStatuses: ["probation", "active", "on_notice", "exited"], applicantStages: stages, ownerRoles: ["hr", "it", "finance", "line_manager"], leaveTypes: ["annual", "sick", "study", "maternity", "paternity", "compassionate", "unpaid", "training"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1) })) });
     if (p === "/api/departments") return send(res, 200, departments);
     if (p === "/api/employees") {
       let list = employees.filter((e) => (!q("q") || (e.fullName + e.jobTitle + e.email).toLowerCase().includes(q("q").toLowerCase())) && (!q("departmentId") || String(e.departmentId) === q("departmentId")) && (!q("status") || e.status === q("status")));

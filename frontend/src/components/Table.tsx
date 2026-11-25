@@ -17,9 +17,12 @@ interface Props<T> {
   loading?: boolean;
   empty?: ReactNode;
   caption: string;
+  /** makes rows selectable by click, Enter or Space */
+  onRowClick?: (row: T) => void;
+  isSelected?: (row: T) => boolean;
 }
 
-export function Table<T>({ columns, rows, rowKey, loading, empty, caption }: Props<T>) {
+export function Table<T>({ columns, rows, rowKey, loading, empty, caption, onRowClick, isSelected }: Props<T>) {
   if (!loading && rows.length === 0 && empty) return <>{empty}</>;
   return (
     <div className="overflow-x-auto rounded-[14px] border border-line bg-white shadow-card">
@@ -46,7 +49,23 @@ export function Table<T>({ columns, rows, rowKey, loading, empty, caption }: Pro
                 </tr>
               ))
             : rows.map((r) => (
-                <tr key={rowKey(r)} className="border-b border-line align-middle last:border-0 hover:bg-[#FAFBFE]">
+                <tr
+                  key={rowKey(r)}
+                  className={`border-b border-line align-middle last:border-0 hover:bg-[#FAFBFE] ${onRowClick ? "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue" : ""} ${isSelected?.(r) ? "bg-blue-soft" : ""}`}
+                  aria-current={isSelected?.(r) ? "true" : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onClick={onRowClick ? () => onRowClick(r) : undefined}
+                  onKeyDown={
+                    onRowClick
+                      ? (ev) => {
+                          if (ev.key === "Enter" || ev.key === " ") {
+                            ev.preventDefault();
+                            onRowClick(r);
+                          }
+                        }
+                      : undefined
+                  }
+                >
                   {columns.map((c) => (
                     <td key={c.key} className={`px-4 py-3 ${c.className ?? ""}`}>
                       {c.render(r)}

@@ -386,6 +386,8 @@ export interface Leave {
   decidedByName?: string;
   decidedAt: string | null;
   comment?: string;
+  trainingTitle?: string;
+  trainingProvider?: string;
   hasNote: boolean;
   noteFileName?: string;
   needsNote: boolean;
@@ -415,4 +417,16 @@ export interface LeaveReport {
   title: string;
   columns: string[];
   rows: string[][];
+}
+
+export interface StaffLeave {
+  employeeId: number;
+  fullName: string;
+  jobTitle: string;
+  managerName: string;
+  takenDays: number;
+  remainingDays: number;
+  pendingDays: number;
+  outNow: boolean;
+  outNowReason?: string;
 }

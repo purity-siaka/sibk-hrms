@@ -57,9 +57,10 @@ const MODULES: NavModule[] = [
     prefixes: ["/leave"],
     roles: ["hr"],
     ribbon: [
-      { label: "All requests", href: "/leave" },
+      { label: "Staff & Leave", href: "/leave" },
       { label: "Approvals", href: "/leave/approvals" },
-      { label: "Reports", href: "/leave/reports" },
+      { label: "HR Reports", href: "/leave/reports" },
+      { label: "All requests", href: "/leave/requests" },
       { label: "Holidays", href: "/leave/holidays" },
       { label: "Year-end", href: "/leave/year-end", roles: ["admin"] },
     ],

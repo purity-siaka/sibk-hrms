@@ -150,7 +150,7 @@ func (a *App) employeesMissingDocs(current []models.Employee) (int, error) {
 
 // ---- CSV reports ----
 
-func writeCSV(w http.ResponseWriter, filename string, rows [][]string) {
+func csvBytes(rows [][]string) []byte {
 	var b strings.Builder
 	b.WriteString("\xef\xbb\xbf")
 	for _, row := range rows {
@@ -161,9 +161,13 @@ func writeCSV(w http.ResponseWriter, filename string, rows [][]string) {
 		b.WriteString(strings.Join(cells, ","))
 		b.WriteString("\r\n")
 	}
+	return []byte(b.String())
+}
+
+func writeCSV(w http.ResponseWriter, filename string, rows [][]string) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
-	_, _ = w.Write([]byte(b.String()))
+	_, _ = w.Write(csvBytes(rows))
 }
 
 func sv(s *string) string {

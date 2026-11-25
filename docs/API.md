@@ -106,8 +106,16 @@ SIBK HR Management System. Navy `#1B2F7A` (dark `#132160`), blue `#2F4DA8`, gold
 Process (same as the Power Apps version): staff apply, the decider approves or rejects, the employee sees the outcome.
 Working days are Monday to Friday minus public holidays. Only annual leave is deducted from the balance (on approval; refunded on cancel).
 
-Who decides: HR's own leave -> the CEO; managers and staff with no line manager -> HR; everyone else -> their line manager (final).
-A person marked `doesNotApprove` is skipped and their team's requests go to HR. Nobody can decide their own request.
+Who decides: every request goes to the employee's line manager, whose decision is final. It goes to HR only when there is
+no manager stage: the person has no manager (for example the CEO) or the manager is marked `doesNotApprove`. Nobody can decide
+their own request. Staff without an email have no login; HR (Carol, as their manager) records and decides for them.
+
+Training: leave type `training` is a separate application (fields `trainingTitle`, `trainingProvider`), uses the same approval,
+is never deducted from the balance, and shows in "Who's out now" and the Training report.
+
+Emails (when SMTP_* is set; otherwise they are only logged): on every request HR_MAILBOX is told who asked and whose approval it
+awaits, the approver is asked to decide, the employee and HR are told the outcome, and HR is told about cancellations.
+
 Sick leave longer than 2 working days accepts a sick-note attachment (PDF/JPG/PNG/DOCX, 10 MB); it can be added later, and
 requests without one appear in the "Sick leave without note" report.
 
@@ -125,7 +133,9 @@ requests without one appear in the "Sick leave without note" report.
 | POST /api/leave/{id}/cancel | owner, HR | pending, or approved and not yet finished |
 | POST /api/leave/{id}/attachment | owner, HR | multipart `file` (sick leave only) |
 | GET /api/leave/{id}/attachment | owner, decider, HR | download (audited) |
-| GET /api/leave/reports | HR | list of reports |
-| GET /api/leave/reports/{name}[?format=csv] | HR | out-now, pending, upcoming, balances, sick-no-note, audit |
+| GET /api/leave/staff | HR | every employee: takenDays, remainingDays, pendingDays, outNow |
+| GET /api/leave-reports | HR | list of reports |
+| POST /api/leave-reports/{name}/email | HR | emails the report as a CSV (opens in Excel) to the caller; 503 if SMTP is not set |
+| GET /api/leave-reports/{name}[?format=csv] | HR | out-now, pending, upcoming, balances, sick-no-note, audit, training |
 | POST /api/leave/year-end | HR admin | `{confirm: "CARRY FORWARD"}`; carries all unused days forward, no cap |
 | GET/POST/DELETE /api/holidays | read: any; write: HR | `{name, date, repeatsYearly}` |

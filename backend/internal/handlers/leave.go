@@ -12,6 +12,7 @@ import (
 	"sibk-hrms/backend/internal/audit"
 	"sibk-hrms/backend/internal/auth"
 	"sibk-hrms/backend/internal/httpx"
+	"sibk-hrms/backend/internal/mail"
 	"sibk-hrms/backend/internal/models"
 	"sibk-hrms/backend/internal/policy"
 	"sibk-hrms/backend/internal/storage"
@@ -177,34 +178,11 @@ func (a *App) canApproveEmp(id uint) bool {
 	return n > 0
 }
 
-func (a *App) findCEO() *models.Employee {
-	var e models.Employee
-	err := a.DB.Where("(LOWER(job_title) = ? OR LOWER(job_title) LIKE ?) AND status <> ?", "ceo", "%chief executive%", models.StatusExited).First(&e).Error
-	if err != nil {
-		return nil
-	}
-	return &e
-}
-
-// routeLeave decides who decides a request, following the SIBK leave process:
-//   - HR's own leave goes to the CEO;
-//   - managers, and staff with no line manager, go to HR;
-//   - everyone else goes to their line manager, whose decision is final.
+// routeLeave decides who decides a request. Every request goes to the employee's line manager,
+// whose decision is final. It goes to HR only when there is no manager stage: the person has no
+// manager (for example the CEO) or the manager is set not to approve.
 func (a *App) routeLeave(e *models.Employee) (string, *uint) {
-	u := a.userFor(e.ID)
-	if u != nil && (u.Role == models.RoleHRAdmin || u.Role == models.RoleHROfficer) {
-		if ceo := a.findCEO(); ceo != nil && ceo.ID != e.ID && a.canApproveEmp(ceo.ID) {
-			return models.ApproverCEO, ptrUint(ceo.ID)
-		}
-		if e.ManagerID != nil && a.canApproveEmp(*e.ManagerID) {
-			return models.ApproverManager, ptrUint(*e.ManagerID)
-		}
-		return models.ApproverHR, nil
-	}
-	if u != nil && u.Role == models.RoleManager {
-		return models.ApproverHR, nil
-	}
-	if e.ManagerID != nil && a.canApproveEmp(*e.ManagerID) {
+	if e.ManagerID != nil && *e.ManagerID != e.ID && a.canApproveEmp(*e.ManagerID) {
 		return models.ApproverManager, ptrUint(*e.ManagerID)
 	}
 	return models.ApproverHR, nil
@@ -232,6 +210,8 @@ type LeaveView struct {
 	Comment                string     `json:"comment,omitempty"`
 	HasNote                bool       `json:"hasNote"`
 	NoteFileName           string     `json:"noteFileName,omitempty"`
+	TrainingTitle          string     `json:"trainingTitle,omitempty"`
+	TrainingProvider       string     `json:"trainingProvider,omitempty"`
 	NeedsNote              bool       `json:"needsNote"`
 	CreatedAt              time.Time  `json:"createdAt"`
 	CanDecide              bool       `json:"canDecide"`
@@ -278,6 +258,7 @@ func (a *App) leaveViews(rows []models.LeaveRequest, act *auth.Actor) []LeaveVie
 			FromDate: dval(l.FromDate), ToDate: dval(l.ToDate), Days: l.Days, Reason: l.Reason, Status: l.Status,
 			ApproverType: l.ApproverType, ApproverName: approver, DaysRemainingAtRequest: l.DaysRemainingAtRequest,
 			DecidedByName: l.DecidedByName, DecidedAt: l.DecidedAt, Comment: l.Comment, HasNote: l.NoteKey != "",
+			TrainingTitle: l.TrainingTitle, TrainingProvider: l.TrainingProvider,
 			NoteFileName: l.NoteFileName, NeedsNote: needsNote(l), CreatedAt: l.CreatedAt,
 			CanDecide: a.mayDecide(act, l), CanCancel: open && (own || act.IsHR()),
 			CanAttach: l.Type == models.LeaveSick && open && (own || act.IsHR()),
@@ -335,6 +316,17 @@ func (a *App) createLeave(w http.ResponseWriter, r *http.Request, act *auth.Acto
 	} else if len(reason) > 1000 {
 		f["reason"] = "keep the reason under 1000 characters"
 	}
+	title, provider := trim(r.FormValue("trainingTitle")), trim(r.FormValue("trainingProvider"))
+	if typ == models.LeaveTraining {
+		if title == "" {
+			f["trainingTitle"] = "enter the name of the training"
+		}
+		if len(title) > 200 || len(provider) > 200 {
+			f["trainingTitle"] = "keep the training name and provider under 200 characters"
+		}
+	} else {
+		title, provider = "", ""
+	}
 	if len(f) == 0 && to.Before(*from) {
 		f["toDate"] = "must be on or after the first day"
 	}
@@ -374,7 +366,7 @@ func (a *App) createLeave(w http.ResponseWriter, r *http.Request, act *auth.Acto
 
 	l := models.LeaveRequest{
 		EmployeeID: e.ID, Type: typ, FromDate: *from, ToDate: *to, Days: days, Reason: reason, Status: models.LeavePending,
-		DaysRemainingAtRequest: bal.Remaining, CreatedByUserID: ptrUint(act.UserID),
+		DaysRemainingAtRequest: bal.Remaining, CreatedByUserID: ptrUint(act.UserID), TrainingTitle: title, TrainingProvider: provider,
 	}
 	l.ApproverType, l.ApproverEmployeeID = a.routeLeave(e)
 
@@ -400,6 +392,7 @@ func (a *App) createLeave(w http.ResponseWriter, r *http.Request, act *auth.Acto
 		who = "recorded by HR for " + e.FullName()
 	}
 	audit.Log(a.DB, act, clientIP(r), "leave_apply", "leave", l.ID, fmt.Sprintf("%s %s to %s (%s days), %s", models.LeaveTypeLabel(typ), dval(l.FromDate), dval(l.ToDate), num(days), who))
+	a.notifyApplied(&l, e)
 	httpx.JSON(w, http.StatusCreated, a.leaveViews([]models.LeaveRequest{l}, act)[0])
 	return nil
 }
@@ -491,6 +484,7 @@ func (a *App) decideLeave(w http.ResponseWriter, r *http.Request, act *auth.Acto
 		return err
 	}
 	audit.Log(a.DB, act, clientIP(r), "leave_"+in.Decision, "leave", l.ID, fmt.Sprintf("%s leave %s to %s (%s days)", models.LeaveTypeLabel(l.Type), dval(l.FromDate), dval(l.ToDate), num(l.Days)))
+	a.notifyDecided(l.ID)
 	return a.respondLeave(w, l.ID, act)
 }
 
@@ -536,6 +530,7 @@ func (a *App) cancelLeave(w http.ResponseWriter, r *http.Request, act *auth.Acto
 		return err
 	}
 	audit.Log(a.DB, act, clientIP(r), "leave_cancel", "leave", l.ID, fmt.Sprintf("%s leave %s to %s", models.LeaveTypeLabel(l.Type), dval(l.FromDate), dval(l.ToDate)))
+	a.notifyCancelled(l.ID)
 	return a.respondLeave(w, l.ID, act)
 }
 
@@ -812,7 +807,7 @@ type leaveReport struct {
 
 var leaveReportTitles = map[string]string{
 	"out-now": "Who's out now", "pending": "Pending approvals", "upcoming": "Upcoming leave (90 days)",
-	"balances": "Leave balances", "sick-no-note": "Sick leave without note", "audit": "Approval audit trail",
+	"balances": "Leave balances", "sick-no-note": "Sick leave without note", "audit": "Approval audit trail", "training": "Training applications",
 }
 
 func (a *App) leaveReportFor(key string) (*leaveReport, error) {
@@ -849,6 +844,9 @@ func (a *App) leaveReportFor(key string) (*leaveReport, error) {
 	case "sick-no-note":
 		q = q.Where("type = ? AND days > ? AND note_key = '' AND status IN ?", models.LeaveSick, models.SickNoteAfterDays, []string{models.LeavePending, models.LeaveApproved}).Order("from_date DESC, id")
 		rep.Columns = []string{"Employee", "From", "To", "Days", "Status"}
+	case "training":
+		q = q.Where("type = ? AND status IN ?", models.LeaveTraining, []string{models.LeavePending, models.LeaveApproved}).Order("from_date DESC, id")
+		rep.Columns = []string{"Employee", "Training", "Provider", "From", "To", "Days", "Status"}
 	case "audit":
 		q = q.Where("status <> ?", models.LeavePending).Order("COALESCE(decided_at, updated_at) DESC, id DESC").Limit(500)
 		rep.Columns = []string{"Employee", "Type", "From", "To", "Days", "Outcome", "Decided by", "Decided on", "Comment"}
@@ -867,7 +865,7 @@ func (a *App) leaveReportFor(key string) (*leaveReport, error) {
 	names := a.employeeNames(ids)
 	for i := range rows {
 		l := &rows[i]
-		emp, typ, from, to, days := names[l.EmployeeID], models.LeaveTypeLabel(l.Type), dval(l.FromDate), dval(l.ToDate), num(l.Days)
+		emp, typ, from, to, days := names[l.EmployeeID], reportType(l), dval(l.FromDate), dval(l.ToDate), num(l.Days)
 		var row []string
 		switch key {
 		case "out-now":
@@ -882,6 +880,8 @@ func (a *App) leaveReportFor(key string) (*leaveReport, error) {
 			row = []string{emp, typ, from, to, days}
 		case "sick-no-note":
 			row = []string{emp, from, to, days, strings.ToUpper(l.Status[:1]) + l.Status[1:]}
+		case "training":
+			row = []string{emp, l.TrainingTitle, l.TrainingProvider, from, to, days, strings.ToUpper(l.Status[:1]) + l.Status[1:]}
 		case "audit":
 			on := ""
 			if l.DecidedAt != nil {
@@ -925,9 +925,99 @@ func (a *App) leaveReport(w http.ResponseWriter, r *http.Request, act *auth.Acto
 // leaveReportList lists the available reports.
 func (a *App) leaveReportList(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
 	out := []map[string]string{}
-	for _, k := range []string{"out-now", "pending", "upcoming", "balances", "sick-no-note", "audit"} {
+	for _, k := range []string{"pending", "upcoming", "out-now", "audit", "training", "balances", "sick-no-note"} {
 		out = append(out, map[string]string{"key": k, "title": leaveReportTitles[k]})
 	}
 	httpx.JSON(w, http.StatusOK, out)
+	return nil
+}
+
+// reportType labels a request in a report; training shows its title.
+func reportType(l *models.LeaveRequest) string {
+	if l.Type == models.LeaveTraining && l.TrainingTitle != "" {
+		return "Training: " + l.TrainingTitle
+	}
+	return models.LeaveTypeLabel(l.Type)
+}
+
+// emailReport sends a report to the person who asks, as a file that opens in Excel.
+func (a *App) emailReport(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
+	key := r.PathValue("name")
+	rep, err := a.leaveReportFor(key)
+	if err != nil {
+		return err
+	}
+	if !a.Mail.Enabled() {
+		return httpx.NewError(http.StatusServiceUnavailable, "email is not set up on this server yet. Use Download instead, or ask IT to configure SMTP.")
+	}
+	if act.Email == "" {
+		return httpx.BadRequest("your account has no email address")
+	}
+	body := fmt.Sprintf("Hello %s,\r\n\r\nAttached is the report \"%s\" as you requested, with %d rows. It opens in Excel.\r\n\r\nSIBK HR Management System", act.Name, rep.Title, len(rep.Rows))
+	err = a.Mail.Send([]string{act.Email}, "Leave report: "+rep.Title, body,
+		&mail.Attachment{Name: "leave-" + key + ".csv", ContentType: "text/csv; charset=utf-8", Data: csvBytes(append([][]string{rep.Columns}, rep.Rows...))})
+	if err != nil {
+		return httpx.NewError(http.StatusBadGateway, "the email could not be sent. Please try again or use Download.")
+	}
+	audit.Log(a.DB, act, clientIP(r), "export", "leave_report", key, rep.Title+" emailed to the requester")
+	httpx.JSON(w, http.StatusOK, map[string]string{"sentTo": act.Email})
+	return nil
+}
+
+// StaffLeave is one row of the Staff & Leave list.
+type StaffLeave struct {
+	EmployeeID   uint    `json:"employeeId"`
+	FullName     string  `json:"fullName"`
+	JobTitle     string  `json:"jobTitle"`
+	ManagerName  string  `json:"managerName"`
+	Taken        float64 `json:"takenDays"`
+	Remaining    float64 `json:"remainingDays"`
+	Pending      float64 `json:"pendingDays"`
+	OutNow       bool    `json:"outNow"`
+	OutNowReason string  `json:"outNowReason,omitempty"`
+}
+
+func (a *App) staffLeave(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
+	var emps []models.Employee
+	if err := a.DB.Where("status <> ?", models.StatusExited).Order("first_name, last_name").Find(&emps).Error; err != nil {
+		return err
+	}
+	var ids []uint
+	for _, e := range emps {
+		if e.ManagerID != nil {
+			ids = append(ids, *e.ManagerID)
+		}
+	}
+	names := a.employeeNames(ids)
+	type pend struct {
+		EmployeeID uint
+		Total      float64
+	}
+	var ps []pend
+	a.DB.Model(&models.LeaveRequest{}).Select("employee_id, COALESCE(SUM(days),0) AS total").
+		Where("type = ? AND status = ?", models.LeaveAnnual, models.LeavePending).Group("employee_id").Scan(&ps)
+	pending := map[uint]float64{}
+	for _, p := range ps {
+		pending[p.EmployeeID] = p.Total
+	}
+	today := policy.Today()
+	var out []models.LeaveRequest
+	a.DB.Where("status = ? AND from_date <= ? AND to_date >= ?", models.LeaveApproved, today, today).Find(&out)
+	away := map[uint]string{}
+	for i := range out {
+		away[out[i].EmployeeID] = models.LeaveTypeLabel(out[i].Type)
+	}
+	res := make([]StaffLeave, 0, len(emps))
+	for i := range emps {
+		e := &emps[i]
+		mgr := ""
+		if e.ManagerID != nil {
+			mgr = names[*e.ManagerID]
+		}
+		why, isOut := away[e.ID]
+		res = append(res, StaffLeave{e.ID, e.FullName(), e.JobTitle, mgr, e.LeaveTakenDays,
+			e.LeaveAccruedDays + e.LeaveCarriedForward - e.LeaveTakenDays, pending[e.ID], isOut, why})
+	}
+	httpx.JSON(w, http.StatusOK, res)
 	return nil
 }

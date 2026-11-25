@@ -43,3 +43,8 @@ Set a random `JWT_SECRET` (32+ characters), `APP_ENV=production`, `SEED_DEMO=fal
 Leave is built in (apply, approve, balances, public holidays, HR reports, sick-note attachment). See "Leave" in docs/API.md.
 Demo data loads the real balances and the 8 leave requests recorded so far. After upgrading an existing demo database, run
 `docker compose down -v` and start again so the new tables and data load.
+
+### Email
+
+Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (and optionally `MAIL_FROM_NAME`, `HR_MAILBOX`, `SMTP_AUTH=login`)
+in `.env` next to `docker-compose.yml`. Without them the system works normally and emails are only written to the API log.

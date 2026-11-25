@@ -1,79 +1,69 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
-import { FilterBar, PageHeader } from "@/components/PageHeader";
-import { FilterSelect, SearchInput } from "@/components/Fields";
-import { ErrorState, EmptyState } from "@/components/EmptyState";
-import { DateRange, LeaveActions, LeaveStatusCell } from "@/components/LeavePanel";
-import { Pagination } from "@/components/Pagination";
+import { EmptyState, ErrorState } from "@/components/EmptyState";
+import { SearchInput } from "@/components/Fields";
+import { LeavePanel } from "@/components/LeavePanel";
+import { PageHeader } from "@/components/PageHeader";
+import { Pill } from "@/components/Pill";
+import { BlockSkeleton } from "@/components/Skeleton";
 import { Table } from "@/components/Table";
-import { useDebounced } from "@/hooks/useDebounced";
 import { useAsync } from "@/hooks/useAsync";
-import { useReference } from "@/hooks/useReference";
+import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
-import { fmtDate } from "@/lib/format";
 
-const SIZE = 20;
-
-export default function AllLeave() {
-  const ref = useReference();
+/** Every employee with days taken and days left. Choosing a person shows all their requests below. */
+export default function StaffAndLeave() {
+  const { user } = useAuth();
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [type, setType] = useState("");
-  const [page, setPage] = useState(1);
-  const dq = useDebounced(q, 300);
-  const list = useAsync(() => api.leave.list({ q: dq, status, type, page, pageSize: SIZE }), [dq, status, type, page]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const staff = useAsync(() => api.leave.staff(), []);
+  const detail = useAsync(() => (selected ? api.leave.forEmployee(selected) : Promise.resolve(null)), [selected]);
+
+  const rows = (staff.data ?? []).filter((s) => !q || `${s.fullName} ${s.jobTitle}`.toLowerCase().includes(q.toLowerCase()));
+  const person = staff.data?.find((s) => s.employeeId === selected);
+  const reload = () => {
+    staff.reload();
+    detail.reload();
+  };
 
   return (
     <>
-      <PageHeader title="All leave requests" subtitle="Every request across the bank. Open a person's record to record leave for them or adjust their balance." />
-      <FilterBar>
-        <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Search by employee name" label="Search leave requests" />
-        <FilterSelect label="Status" value={status} onChange={(v) => { setStatus(v); setPage(1); }}>
-          <option value="">All statuses</option>
-          {["pending", "approved", "rejected", "cancelled"].map((s) => (
-            <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-          ))}
-        </FilterSelect>
-        <FilterSelect label="Leave type" value={type} onChange={(v) => { setType(v); setPage(1); }}>
-          <option value="">All types</option>
-          {ref.leaveTypes.map((t) => (
-            <option key={t.key} value={t.key}>{t.label}</option>
-          ))}
-        </FilterSelect>
-      </FilterBar>
-      {list.error ? (
-        <ErrorState error={list.error} onRetry={list.reload} />
+      <PageHeader title="Staff & Leave" subtitle="Every employee with annual leave taken and days left. Choose a person to see all their requests." />
+      <SearchInput value={q} onChange={setQ} placeholder="Search by name or position" label="Search staff" />
+      {staff.error ? (
+        <ErrorState error={staff.error} onRetry={staff.reload} />
       ) : (
-        <>
-          <Table
-            caption="Leave requests"
-            loading={list.loading && !list.data}
-            rows={list.data?.items ?? []}
-            rowKey={(l) => l.id}
-            empty={<EmptyState title="No leave requests found" text="Try a different filter." />}
-            columns={[
-              { key: "emp", header: "Employee", render: (l) => <Link href={`/employees/${l.employeeId}`} className="font-semibold text-navy hover:underline">{l.employeeName}</Link> },
-              { key: "type", header: "Type", render: (l) => l.typeLabel },
-              { key: "dates", header: "Dates", render: (l) => <DateRange l={l} /> },
-              { key: "days", header: "Days", render: (l) => l.days },
-              { key: "status", header: "Status", render: (l) => <LeaveStatusCell l={l} /> },
-              {
-                key: "by",
-                header: "Decision",
-                hideOnMobile: true,
-                render: (l) => (
-                  <span className="text-sm text-muted">
-                    {l.status === "pending" ? `Waiting for ${l.approverName}` : [l.decidedByName, l.decidedAt && fmtDate(l.decidedAt)].filter(Boolean).join(", ")}
-                  </span>
-                ),
-              },
-              { key: "act", header: "", render: (l) => <LeaveActions l={l} onChange={list.reload} /> },
-            ]}
-          />
-          <Pagination page={page} pageSize={SIZE} total={list.data?.total ?? 0} onChange={setPage} />
-        </>
+        <Table
+          caption="Staff and leave balances"
+          loading={staff.loading && !staff.data}
+          rows={rows}
+          rowKey={(s) => s.employeeId}
+          onRowClick={(s) => setSelected(s.employeeId)}
+          isSelected={(s) => s.employeeId === selected}
+          empty={<EmptyState title="No staff found" />}
+          columns={[
+            { key: "name", header: "Employee", render: (s) => <span className="font-semibold text-navy">{s.fullName}</span> },
+            { key: "pos", header: "Position", hideOnMobile: true, render: (s) => s.jobTitle },
+            { key: "mgr", header: "Line manager", hideOnMobile: true, render: (s) => s.managerName || "None (HR decides)" },
+            { key: "taken", header: "Days taken", render: (s) => s.takenDays },
+            { key: "left", header: "Days left", render: (s) => <strong className="text-ink">{s.remainingDays}</strong> },
+            { key: "pend", header: "Pending", hideOnMobile: true, render: (s) => (s.pendingDays > 0 ? s.pendingDays : "") },
+            { key: "out", header: "", render: (s) => (s.outNow ? <Pill tone="info">Out now{s.outNowReason ? `: ${s.outNowReason}` : ""}</Pill> : null) },
+          ]}
+        />
+      )}
+      {selected && (
+        <section aria-label={`Requests of ${person?.fullName ?? "employee"}`} className="space-y-4 pt-2">
+          <h2 className="text-lg font-bold text-ink">{person?.fullName}: all requests</h2>
+          {detail.error ? (
+            <ErrorState error={detail.error} onRetry={detail.reload} />
+          ) : detail.loading && !detail.data ? (
+            <BlockSkeleton lines={5} />
+          ) : (
+            detail.data && <LeavePanel summary={detail.data} onChange={reload} canApply employeeId={person && person.employeeId !== user?.employeeId ? person.employeeId : undefined} employeeName={person?.fullName} />
+          )}
+        </section>
       )}
     </>
   );

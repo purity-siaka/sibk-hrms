@@ -21,6 +21,14 @@ type Config struct {
 	AdminEmail    string
 	AdminPassword string
 	SeedDemo      bool
+	SMTPHost      string
+	SMTPPort      string
+	SMTPUser      string
+	SMTPPass      string
+	SMTPAuth      string
+	MailFrom      string
+	MailFromName  string
+	HRMailbox     string
 }
 
 func get(key, fallback string) string {
@@ -43,6 +51,14 @@ func Load() (Config, error) {
 		AdminEmail:    strings.ToLower(get("ADMIN_EMAIL", "")),
 		AdminPassword: get("ADMIN_PASSWORD", ""),
 		SeedDemo:      seed,
+		SMTPHost:      get("SMTP_HOST", ""),
+		SMTPPort:      get("SMTP_PORT", "587"),
+		SMTPUser:      get("SMTP_USER", ""),
+		SMTPPass:      os.Getenv("SMTP_PASS"),
+		SMTPAuth:      get("SMTP_AUTH", "plain"),
+		MailFrom:      get("MAIL_FROM", get("SMTP_USER", "")),
+		MailFromName:  get("MAIL_FROM_NAME", "IT Department"),
+		HRMailbox:     get("HR_MAILBOX", "hr@salaaminvestments.com"),
 	}
 	if c.Env != "development" {
 		if c.JWTSecret == defaultSecret || len(c.JWTSecret) < 32 {

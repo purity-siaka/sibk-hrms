@@ -13,6 +13,7 @@ import (
 	"sibk-hrms/backend/internal/auth"
 	"sibk-hrms/backend/internal/config"
 	"sibk-hrms/backend/internal/httpx"
+	"sibk-hrms/backend/internal/mail"
 	"sibk-hrms/backend/internal/models"
 	"sibk-hrms/backend/internal/policy"
 	"sibk-hrms/backend/internal/storage"
@@ -29,12 +30,14 @@ type App struct {
 	DB      *gorm.DB
 	Cfg     config.Config
 	Store   storage.Store
+	Mail    *mail.Mailer
 	Limiter *auth.Limiter
 }
 
 // New creates an App.
 func New(db *gorm.DB, cfg config.Config, store storage.Store) *App {
-	return &App{DB: db, Cfg: cfg, Store: store, Limiter: auth.NewLimiter(5, 15*time.Minute)}
+	m := mail.New(mail.Config{Host: cfg.SMTPHost, Port: cfg.SMTPPort, User: cfg.SMTPUser, Pass: cfg.SMTPPass, Auth: cfg.SMTPAuth, From: cfg.MailFrom, FromName: cfg.MailFromName})
+	return &App{DB: db, Cfg: cfg, Store: store, Mail: m, Limiter: auth.NewLimiter(5, 15*time.Minute)}
 }
 
 type handlerFunc func(w http.ResponseWriter, r *http.Request, act *auth.Actor) error
@@ -139,8 +142,10 @@ func (a *App) Routes() *http.ServeMux {
 	route("GET /api/leave", a.listLeave, hrRoles)
 	route("GET /api/leave/calc", a.calcDays, anyRole)
 	route("GET /api/leave/approvals", a.leaveApprovals, anyRole)
-	route("GET /api/leave/reports", a.leaveReportList, hrRoles)
-	route("GET /api/leave/reports/{name}", a.leaveReport, hrRoles)
+	route("GET /api/leave-reports", a.leaveReportList, hrRoles)
+	route("GET /api/leave-reports/{name}", a.leaveReport, hrRoles)
+	route("POST /api/leave-reports/{name}/email", a.emailReport, hrRoles)
+	route("GET /api/leave/staff", a.staffLeave, hrRoles)
 	route("POST /api/leave/year-end", a.yearEnd, adminRoles)
 	route("POST /api/leave/{id}/decide", a.decideLeave, anyRole)
 	route("POST /api/leave/{id}/cancel", a.cancelLeave, anyRole)

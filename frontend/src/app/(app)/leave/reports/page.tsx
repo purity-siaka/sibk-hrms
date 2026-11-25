@@ -1,6 +1,6 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Download, Mail } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/Button";
 import { EmptyState, ErrorState } from "@/components/EmptyState";
@@ -11,27 +11,44 @@ import { useAsync } from "@/hooks/useAsync";
 import { api } from "@/lib/api";
 
 const REPORTS = [
-  { key: "out-now", title: "Who's out now" },
   { key: "pending", title: "Pending approvals" },
   { key: "upcoming", title: "Upcoming leave (90 days)" },
+  { key: "out-now", title: "Who's out now" },
+  { key: "audit", title: "Approval audit trail" },
+  { key: "training", title: "Training applications" },
   { key: "balances", title: "Leave balances" },
   { key: "sick-no-note", title: "Sick leave without note" },
-  { key: "audit", title: "Approval audit trail" },
 ];
 
 export default function LeaveReports() {
   const toast = useToast();
-  const [key, setKey] = useState("out-now");
+  const [key, setKey] = useState("pending");
+  const [sending, setSending] = useState(false);
   const rep = useAsync(() => api.leave.report(key), [key]);
   return (
     <>
       <PageHeader
         title="Leave reports"
-        subtitle="Choose a report. Download opens in Excel."
+        subtitle="Choose a report. Export to Excel emails it to you; Download saves it on this computer."
         actions={
-          <Button variant="gold" icon={<Download className="h-4 w-4" aria-hidden />} onClick={() => void toast.run(api.leave.downloadReport(key), "Report downloaded")}>
-            Download for Excel
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" icon={<Download className="h-4 w-4" aria-hidden />} onClick={() => void toast.run(api.leave.downloadReport(key), "Report downloaded")}>
+              Download
+            </Button>
+            <Button
+              variant="gold"
+              icon={<Mail className="h-4 w-4" aria-hidden />}
+              loading={sending}
+              onClick={async () => {
+                setSending(true);
+                const r = await toast.run(api.leave.emailReport(key), "Report emailed to you");
+                setSending(false);
+                if (r) toast.success(`Sent to ${r.sentTo}. Check your inbox.`);
+              }}
+            >
+              Export to Excel
+            </Button>
+          </div>
         }
       />
       <div role="tablist" aria-label="Reports" className="flex flex-wrap gap-2">

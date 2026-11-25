@@ -49,23 +49,25 @@ var balances = map[string][3]float64{ // accrued, carried forward, taken
 }
 
 type leaveRow struct {
-	who, typ, from, to      string
-	days                    float64
-	remaining               float64
-	approver, status        string
-	by, on, reason, comment string
+	who, typ, from, to              string
+	days                            float64
+	remaining                       float64
+	approver, status                string
+	by, on, reason, comment         string
+	trainingTitle, trainingProvider string
 }
 
 // The leave requests recorded so far (SIBK's Leavelogs list).
 var leaveRows = []leaveRow{
-	{"Purity Siaka", models.LeaveStudy, "2026-11-04", "2026-11-11", 6, 15, "Nicholas Kiganya", models.LeaveRejected, "Nicholas Kiganya", "2026-11-02", "Graduation arrangements and commitments.", "Request under the normal annual leave."},
-	{"Purity Siaka", models.LeaveAnnual, "2026-11-04", "2026-11-11", 6, 21, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-02", "Graduation arrangements and commitment.", "Ok"},
-	{"Caroline Mathai", models.LeaveAnnual, "2026-11-09", "2026-11-16", 6, 11, "Saad Rahman", models.LeavePending, "", "", "Annual leave", ""},
-	{"Abdirahman Mohamed", models.LeaveAnnual, "2026-11-17", "2026-11-17", 1, 8, "Saad Rahman", models.LeaveCancelled, "", "", "HI", ""},
-	{"Geoffrey Aricha", models.LeaveAnnual, "2026-11-13", "2026-11-16", 2, 8, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-17", "Annual Leave", "ok"},
-	{"Abdirahman Mohamed", models.LeaveAnnual, "2026-11-18", "2026-11-18", 1, 8, "Saad Rahman", models.LeavePending, "", "", "1", ""},
-	{"Moses Ngige", models.LeaveAnnual, "2026-11-20", "2026-11-23", 2, 4, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-19", "To handle personal matters that require my attention", "ok"},
-	{"Dennis Muasya", models.LeaveStudy, "2026-11-23", "2026-11-26", 4, 7, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-23", "To attend to exams", "Approved."},
+	{"Purity Siaka", models.LeaveStudy, "2026-11-04", "2026-11-11", 6, 15, "Nicholas Kiganya", models.LeaveRejected, "Nicholas Kiganya", "2026-11-02", "Graduation arrangements and commitments.", "Request under the normal annual leave.", "", ""},
+	{"Purity Siaka", models.LeaveAnnual, "2026-11-04", "2026-11-11", 6, 21, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-02", "Graduation arrangements and commitment.", "Ok", "", ""},
+	{"Caroline Mathai", models.LeaveAnnual, "2026-11-09", "2026-11-16", 6, 11, "Saad Rahman", models.LeavePending, "", "", "Annual leave", "", "", ""},
+	{"Abdirahman Mohamed", models.LeaveAnnual, "2026-11-17", "2026-11-17", 1, 8, "Saad Rahman", models.LeaveCancelled, "", "", "HI", "", "", ""},
+	{"Geoffrey Aricha", models.LeaveAnnual, "2026-11-13", "2026-11-16", 2, 8, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-17", "Annual Leave", "ok", "", ""},
+	{"Abdirahman Mohamed", models.LeaveAnnual, "2026-11-18", "2026-11-18", 1, 8, "Saad Rahman", models.LeavePending, "", "", "1", "", "", ""},
+	{"Moses Ngige", models.LeaveAnnual, "2026-11-20", "2026-11-23", 2, 4, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-19", "To handle personal matters that require my attention", "ok", "", ""},
+	{"Lucy Wairimu", models.LeaveTraining, "2026-12-01", "2026-12-03", 3, 7, "Saad Rahman", models.LeaveApproved, "Saad Rahman", "2026-11-24", "AML/CFT compliance refresher", "Approved.", "AML/CFT Refresher Course", "Kenya Bankers Association"},
+	{"Dennis Muasya", models.LeaveStudy, "2026-11-23", "2026-11-26", 4, 7, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-23", "To attend to exams", "Approved.", "", ""},
 }
 
 func date(s string) time.Time {
@@ -88,9 +90,10 @@ func seedLeave(tx *gorm.DB, ids map[string]uint) error {
 			Status: r.status, ApproverType: models.ApproverManager, ApproverEmployeeID: ptr(ids[r.approver]),
 			DaysRemainingAtRequest: r.remaining, Comment: r.comment, CountedInBalance: r.status == models.LeaveApproved && r.typ == models.LeaveAnnual,
 		}
-		if r.who == "Caroline Mathai" {
-			l.ApproverType = models.ApproverCEO
+		if r.who == "Saad Rahman" {
+			l.ApproverType, l.ApproverEmployeeID = models.ApproverHR, nil
 		}
+		l.TrainingTitle, l.TrainingProvider = r.trainingTitle, r.trainingProvider
 		if r.by != "" {
 			t := date(r.on).Add(10 * time.Hour)
 			l.DecidedByName, l.DecidedAt = r.by, &t
