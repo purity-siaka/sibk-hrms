@@ -158,10 +158,10 @@ export function EmployeeForm({ employee, managers, onSubmit, onCancel, submitLab
           <Input label="Bank name" value={d.bankName} onChange={set("bankName")} />
           <Input label="Bank account no." value={d.bankAccount} onChange={set("bankAccount")} />
         </FormGrid>
-        <Textarea label="Home address" value={d.address} onChange={set("address")} />
+        <Textarea label="Physical address" value={d.address} onChange={set("address")} />
         <FormGrid cols={3}>
-          <Input label="Emergency contact" value={d.emergencyContactName} onChange={set("emergencyContactName")} />
-          <Input label="Emergency phone" value={d.emergencyContactPhone} onChange={set("emergencyContactPhone")} />
+          <Input label="Alternative contact person" value={d.emergencyContactName} onChange={set("emergencyContactName")} />
+          <Input label="Alternative phone number" value={d.emergencyContactPhone} onChange={set("emergencyContactPhone")} />
           <Input label="Relationship" value={d.emergencyContactRelation} onChange={set("emergencyContactRelation")} />
         </FormGrid>
       </fieldset>

@@ -217,8 +217,8 @@ export default function EmployeeDetailPage() {
               {sensitiveVisible ? <Field label="NSSF no." value={e.nssfNo} /> : <Hidden label="NSSF no." />}
               {sensitiveVisible ? <Field label="SHA no." value={e.shaNo} /> : <Hidden label="SHA no." />}
               {sensitiveVisible ? <Field label="Bank" value={[e.bankName, e.bankAccount].filter(Boolean).join(" · ")} /> : <Hidden label="Bank" />}
-              <Field label="Home address" value={e.address} />
-              <Field label="Emergency contact" value={[e.emergencyContactName, e.emergencyContactRelation && `(${e.emergencyContactRelation})`, e.emergencyContactPhone].filter(Boolean).join(" ")} />
+              <Field label="Physical address" value={e.address} />
+              <Field label="Alternative contact person" value={[e.emergencyContactName, e.emergencyContactRelation && `(${e.emergencyContactRelation})`, e.emergencyContactPhone].filter(Boolean).join(" ")} />
             </dl>
             {hr && <p className="mt-4 text-xs text-muted">Opening this record is logged in the audit trail.</p>}
           </Card>

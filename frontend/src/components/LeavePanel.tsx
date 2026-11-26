@@ -1,9 +1,10 @@
 "use client";
 
-import { FileText, GraduationCap, Paperclip, Plus } from "lucide-react";
+import { Eye, GraduationCap, Paperclip, Plus } from "lucide-react";
 import { useState } from "react";
 import { ApplyLeaveModal } from "./ApplyLeaveModal";
 import { Button } from "./Button";
+import { usePreview } from "./FilePreview";
 import { Card, StatCard } from "./Card";
 import { EmptyState } from "./EmptyState";
 import { Pill, StatusPill } from "./Pill";
@@ -42,11 +43,13 @@ export function LeaveStatusCell({ l }: { l: Leave }) {
 /** Row actions that apply to the viewer: attach sick note, download note, cancel. */
 export function LeaveActions({ l, onChange }: { l: Leave; onChange: () => void }) {
   const toast = useToast();
+  const { preview, node: previewNode } = usePreview();
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {previewNode}
       {l.hasNote && (
-        <button type="button" onClick={() => void toast.run(api.leave.downloadNote(l), "Download started")} className="inline-flex items-center gap-1 text-sm font-semibold text-navy hover:underline">
-          <FileText className="h-4 w-4" aria-hidden /> Sick note
+        <button type="button" onClick={() => preview({ path: `/leave/${l.id}/attachment`, fileName: l.noteFileName || "sick-note.pdf", title: `Sick note - ${l.employeeName}` })} className="inline-flex items-center gap-1 text-sm font-semibold text-navy hover:underline">
+          <Eye className="h-4 w-4" aria-hidden /> Preview sick note
         </button>
       )}
       {l.canAttach && (
@@ -169,24 +172,37 @@ export function LeavePanel({
 /** Pending requests the viewer can approve or reject. */
 export function ApprovalList({ items, onChange, empty }: { items: Leave[]; onChange: () => void; empty: string }) {
   const toast = useToast();
+  const { preview, node: previewNode } = usePreview();
   const [deciding, setDeciding] = useState<{ leave: Leave; decision: "approve" | "reject" } | null>(null);
   if (items.length === 0) return <EmptyState title="Nothing waiting" text={empty} />;
   return (
     <>
+      {previewNode}
       <ul className="grid gap-3 lg:grid-cols-2">
         {items.map((l) => (
           <li key={l.id} className="rounded-[14px] border border-line bg-white p-4 shadow-card">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-bold text-ink">{l.employeeName}</p>
-                <p className="text-sm text-muted">
-                  {l.type === "training" ? `Training: ${l.trainingTitle ?? ""}${l.trainingProvider ? `, ${l.trainingProvider}` : ""}` : `${l.typeLabel} leave`} · <DateRange l={l} /> · <strong className="text-ink">{l.days} {l.days === 1 ? "day" : "days"}</strong>
-                </p>
-              </div>
+              <p className="text-base font-bold text-ink">Leave approval needed: {l.employeeName}</p>
               <LeaveStatusCell l={l} />
             </div>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-ink">{l.reason}</p>
-            {l.type === "annual" && <p className="mt-1 text-xs text-muted">Balance at request: {l.daysRemainingAtRequest} days</p>}
+            <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-5 gap-y-1.5 text-sm">
+              <dt className="text-muted">Employee</dt>
+              <dd className="font-semibold text-ink">{l.employeeName}</dd>
+              <dt className="text-muted">Leave type</dt>
+              <dd className="text-ink">{l.type === "training" ? `Training: ${l.trainingTitle ?? ""}${l.trainingProvider ? `, ${l.trainingProvider}` : ""}` : l.typeLabel}</dd>
+              <dt className="text-muted">From</dt>
+              <dd className="text-ink">{fmtDate(l.fromDate)}</dd>
+              <dt className="text-muted">To</dt>
+              <dd className="text-ink">{fmtDate(l.toDate)}</dd>
+              <dt className="text-muted">Days taken</dt>
+              <dd className="font-semibold text-ink">{l.days} working {l.days === 1 ? "day" : "days"}</dd>
+              <dt className="text-muted">Reason</dt>
+              <dd className="whitespace-pre-wrap text-ink">{l.reason || "None given"}</dd>
+              <dt className="text-muted">Days remaining (before this request)</dt>
+              <dd className="text-ink">{l.daysRemainingAtRequest}</dd>
+              <dt className="text-muted">Requested on</dt>
+              <dd className="text-ink">{fmtDate(l.createdAt)}</dd>
+            </dl>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => setDeciding({ leave: l, decision: "approve" })}>
                 Approve
@@ -195,8 +211,8 @@ export function ApprovalList({ items, onChange, empty }: { items: Leave[]; onCha
                 Reject
               </Button>
               {l.hasNote && (
-                <button type="button" onClick={() => void toast.run(api.leave.downloadNote(l), "Download started")} className="inline-flex items-center gap-1 text-sm font-semibold text-navy hover:underline">
-                  <FileText className="h-4 w-4" aria-hidden /> Sick note
+                <button type="button" onClick={() => preview({ path: `/leave/${l.id}/attachment`, fileName: l.noteFileName || "sick-note.pdf", title: `Sick note - ${l.employeeName}` })} className="inline-flex items-center gap-1 text-sm font-semibold text-navy hover:underline">
+                  <Eye className="h-4 w-4" aria-hidden /> Preview sick note
                 </button>
               )}
               <span className="ml-auto text-xs text-muted">{l.approverType === "hr" ? "HR decides" : l.approverType === "ceo" ? "CEO decides" : "Line manager decides (final)"}</span>

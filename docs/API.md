@@ -133,9 +133,11 @@ requests without one appear in the "Sick leave without note" report.
 | POST /api/leave/{id}/cancel | owner, HR | pending, or approved and not yet finished |
 | POST /api/leave/{id}/attachment | owner, HR | multipart `file` (sick leave only) |
 | GET /api/leave/{id}/attachment | owner, decider, HR | download (audited) |
-| GET /api/leave/staff | HR | every employee: takenDays, remainingDays, pendingDays, outNow |
-| GET /api/leave-reports | HR | list of reports |
-| POST /api/leave-reports/{name}/email | HR | emails the report as a CSV (opens in Excel) to the caller; 503 if SMTP is not set |
-| GET /api/leave-reports/{name}[?format=csv] | HR | out-now, pending, upcoming, balances, sick-no-note, audit, training |
+| GET /api/leave/staff | HR (all) / manager (direct reports) | one row per person: broughtForwardDays, accruedDays, takenDays, remainingDays, sickDays, trainingDays, otherDays, pendingRequests, pendingDays, outNow, outNowReason, carriedForwardDays (unused annual days that carry into next year) |
+| GET /api/leave-reports | HR / manager | reports the caller may open (HR: full, pending, upcoming, out-now, balances, audit, training, sick-no-note; manager: full, pending, upcoming, out-now, balances, limited to direct reports) |
+| GET /api/leave-reports/{name}[?format=xlsx\|csv] | HR / manager | JSON by default; `format=xlsx` returns an Excel workbook. `full` includes employee reasons and manager comments; `balances` ends with the "Carried forward to <next year>" column |
 | POST /api/leave/year-end | HR admin | `{confirm: "CARRY FORWARD"}`; carries all unused days forward, no cap |
 | GET/POST/DELETE /api/holidays | read: any; write: HR | `{name, date, repeatsYearly}` |
+
+
+Preview: `GET /documents/{id}/download`, `/leave/{id}/attachment` and `/policies/{id}/download` accept `?inline=1` to serve PDFs and images inline (everything else stays a download). Managers may read the sick note of their own direct reports.

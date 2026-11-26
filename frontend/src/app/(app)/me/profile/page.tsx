@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { AuthImage } from "@/components/AuthImage";
 import { Button } from "@/components/Button";
@@ -25,28 +26,73 @@ function Row({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function ContactForm({ e, onSaved }: { e: Employee; onSaved: () => void }) {
+function ContactCard({ e, onSaved }: { e: Employee; onSaved: () => void }) {
   const toast = useToast();
-  const [d, setD] = useState({ phone: e.phone ?? "", address: e.address ?? "", emergencyContactName: e.emergencyContactName ?? "", emergencyContactPhone: e.emergencyContactPhone ?? "", emergencyContactRelation: e.emergencyContactRelation ?? "" });
+  const saved = { phone: e.phone ?? "", emergencyContactName: e.emergencyContactName ?? "", emergencyContactPhone: e.emergencyContactPhone ?? "", emergencyContactRelation: e.emergencyContactRelation ?? "", address: e.address ?? "" };
+  const [d, setD] = useState(saved);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof d) => (ev: { target: { value: string } }) => setD({ ...d, [k]: ev.target.value });
+  const complete = Object.values(d).every((v) => v.trim() !== "");
+  const changed = (Object.keys(d) as (keyof typeof d)[]).some((k) => d[k].trim() !== saved[k].trim());
+  const cancel = () => {
+    setD(saved);
+    setEditing(false);
+  };
   const submit = async (ev: FormEvent) => {
     ev.preventDefault();
+    if (!complete || !changed) return;
     setBusy(true);
-    if (await toast.run(api.me.updateProfile(d), "Details saved")) onSaved();
+    const trimmed = Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v.trim()])) as typeof d;
+    const ok = await toast.run(api.me.updateProfile(trimmed), "Details saved");
     setBusy(false);
+    if (ok) {
+      setEditing(false);
+      onSaved();
+    }
   };
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <FormGrid>
-        <Input label="Phone" value={d.phone} onChange={set("phone")} />
-        <Input label="Emergency contact" value={d.emergencyContactName} onChange={set("emergencyContactName")} />
-        <Input label="Emergency phone" value={d.emergencyContactPhone} onChange={set("emergencyContactPhone")} />
-        <Input label="Relationship" value={d.emergencyContactRelation} onChange={set("emergencyContactRelation")} />
-      </FormGrid>
-      <Textarea label="Home address" value={d.address} onChange={set("address")} />
-      <Button type="submit" loading={busy}>Save details</Button>
-    </form>
+    <Card
+      title="Contact details"
+      action={
+        !editing && (
+          <Button variant="ghost" size="sm" icon={<Pencil className="h-4 w-4" aria-hidden />} onClick={() => setEditing(true)}>
+            Edit details
+          </Button>
+        )
+      }
+    >
+      {editing ? (
+        <form onSubmit={submit} className="space-y-4">
+          <FormGrid>
+            <Input label="Phone" value={d.phone} onChange={set("phone")} required />
+            <Input label="Alternative contact person" value={d.emergencyContactName} onChange={set("emergencyContactName")} required />
+            <Input label="Alternative phone number" value={d.emergencyContactPhone} onChange={set("emergencyContactPhone")} required />
+            <Input label="Relationship" value={d.emergencyContactRelation} onChange={set("emergencyContactRelation")} required />
+          </FormGrid>
+          <Textarea label="Physical address" value={d.address} onChange={set("address")} required />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" loading={busy} disabled={!complete || !changed}>
+              Save details
+            </Button>
+            <Button type="button" variant="ghost" onClick={cancel} disabled={busy}>
+              Cancel
+            </Button>
+            {!complete && <span className="text-sm text-muted">Fill in every field to save.</span>}
+          </div>
+        </form>
+      ) : (
+        <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+          <Row label="Phone" value={e.phone} />
+          <Row label="Alternative contact person" value={e.emergencyContactName} />
+          <Row label="Alternative phone number" value={e.emergencyContactPhone} />
+          <Row label="Relationship" value={e.emergencyContactRelation} />
+          <div className="sm:col-span-2">
+            <Row label="Physical address" value={e.address} />
+          </div>
+        </dl>
+      )}
+    </Card>
   );
 }
 
@@ -105,9 +151,7 @@ export default function MyProfile() {
         </div>
       </Card>
 
-      <Card title="Contact details">
-        <ContactForm e={e} onSaved={me.reload} />
-      </Card>
+      <ContactCard key={`${e.phone}|${e.address}|${e.emergencyContactPhone}`} e={e} onSaved={me.reload} />
 
       <Card title="Official details">
         <p className="mb-3 text-sm text-muted">These are held by HR. To change one, send a request below.</p>

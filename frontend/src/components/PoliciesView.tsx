@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Plus } from "lucide-react";
+import { Eye, Plus } from "lucide-react";
 import { useState } from "react";
 import { useAsync } from "@/hooks/useAsync";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,6 +8,7 @@ import { ApiError, api } from "@/lib/api";
 import { isHR } from "@/lib/access";
 import { fmtDate } from "@/lib/format";
 import { Button } from "./Button";
+import { usePreview } from "./FilePreview";
 import { EmptyState, ErrorState } from "./EmptyState";
 import { FormGrid, Input } from "./Fields";
 import { DOC_ACCEPT, DOC_MAX, FileDrop } from "./FileDrop";
@@ -19,6 +20,7 @@ import { useToast } from "./Toast";
 export function PoliciesView() {
   const { user } = useAuth();
   const toast = useToast();
+  const { preview, node: previewNode } = usePreview();
   const list = useAsync(() => api.policies.list(), []);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -50,6 +52,7 @@ export function PoliciesView() {
 
   return (
     <>
+      {previewNode}
       <PageHeader
         title="Policies"
         subtitle="The current HR Policy and related documents."
@@ -69,7 +72,7 @@ export function PoliciesView() {
             { key: "v", header: "Version", render: (p) => p.version || "n/a" },
             { key: "e", header: "Effective", render: (p) => fmtDate(p.effectiveDate) || "n/a" },
             { key: "u", header: "Uploaded", render: (p) => fmtDate(p.uploadedAt) },
-            { key: "d", header: "", render: (p) => <Button size="sm" variant="ghost" icon={<Download className="h-4 w-4" aria-hidden />} onClick={() => void toast.run(api.policies.download(p), "Download started")}>Open</Button> },
+            { key: "d", header: "", render: (p) => <Button size="sm" variant="ghost" icon={<Eye className="h-4 w-4" aria-hidden />} onClick={() => preview({ path: `/policies/${p.id}/download`, fileName: p.fileName, title: p.title })}>Preview</Button> },
           ]}
         />
       )}

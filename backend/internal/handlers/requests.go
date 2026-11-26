@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -155,7 +154,8 @@ func (a *App) downloadPolicy(w http.ResponseWriter, r *http.Request, act *auth.A
 		return err
 	}
 	w.Header().Set("Content-Type", p.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", safeFilename(p.FileName)))
+	w.Header().Set("Content-Disposition", dispositionFor(r, p.FileName))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, "", st.ModTime(), f)
 	return nil
 }

@@ -7,7 +7,7 @@ import { DOC_ACCEPT, DOC_MAX, FileDrop } from "./FileDrop";
 import { Modal } from "./Modal";
 import { useReference } from "@/hooks/useReference";
 import { api, ApiError } from "@/lib/api";
-import { fmtDate, todayISO } from "@/lib/format";
+import { todayISO } from "@/lib/format";
 
 interface Props {
   open: boolean;
@@ -30,7 +30,6 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
   const [form, setForm] = useState(EMPTY);
   const [file, setFile] = useState<File | null>(null);
   const [days, setDays] = useState<number | null>(null);
-  const [holidays, setHolidays] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,7 +46,6 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
 
   useEffect(() => {
     setDays(null);
-    setHolidays([]);
     if (!form.fromDate || !form.toDate || form.toDate < form.fromDate) return;
     let live = true;
     api.leave
@@ -55,7 +53,6 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
       .then((r) => {
         if (live) {
           setDays(r.days);
-          setHolidays(r.holidays ?? []);
         }
       })
       .catch(() => undefined);
@@ -134,8 +131,7 @@ export function ApplyLeaveModal({ open, onClose, onDone, employeeId, employeeNam
         </FormGrid>
         {days !== null && (
           <p role="status" className="rounded-[10px] bg-blue-soft px-3 py-2 text-sm text-navy">
-            <strong>{days} working {days === 1 ? "day" : "days"}</strong> (Monday to Friday, public holidays excluded
-            {holidays.length > 0 && `: ${holidays.map((h) => fmtDate(h)).join(", ")}`}).
+            <strong>{days} working {days === 1 ? "day" : "days"}</strong>
             {form.fromDate && form.fromDate < todayISO() && " This leave starts in the past."}
           </p>
         )}

@@ -424,9 +424,17 @@ export interface StaffLeave {
   fullName: string;
   jobTitle: string;
   managerName: string;
+  broughtForwardDays: number;
+  accruedDays: number;
   takenDays: number;
   remainingDays: number;
+  sickDays: number;
+  trainingDays: number;
+  otherDays: number;
+  pendingRequests: number;
   pendingDays: number;
   outNow: boolean;
   outNowReason?: string;
+  /** annual-leave days not taken, which move into next year */
+  carriedForwardDays: number;
 }

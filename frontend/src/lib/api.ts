@@ -147,8 +147,8 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
 }
 
 /** Fetch a protected binary resource as a Blob (used for images). */
-export async function fetchBlob(path: string): Promise<Blob> {
-  const res = await send(path, { headers: authHeaders() });
+export async function fetchBlob(path: string, query?: Query): Promise<Blob> {
+  const res = await send(path, { headers: authHeaders() }, query);
   if (!res.ok) throw await toError(res, path);
   return res.blob();
 }
@@ -236,8 +236,9 @@ export const api = {
       return { ...r, rows: norm(r.rows) };
     },
     staff: async () => norm(await request<StaffLeave[]>("GET", "/leave/staff")),
-    emailReport: (key: string) => request<{ sentTo: string }>("POST", `/leave-reports/${key}/email`),
-    downloadReport: (key: string) => downloadFile(`/leave-reports/${key}`, `leave-${key}.csv`, { format: "csv" }),
+    reportList: async () => norm(await request<{ key: string; title: string }[]>("GET", "/leave-reports")),
+    /** Download a report as an Excel workbook (.xlsx). */
+    exportReport: (key: string) => downloadFile(`/leave-reports/${key}`, `leave-${key}.xlsx`, { format: "xlsx" }),
     updateBalance: (id: number, b: { accruedDays: number; carriedForwardDays: number; doesNotApprove: boolean }) =>
       request<LeaveBalance>("PUT", `/employees/${id}/leave-balance`, b),
     yearEnd: () => request<{ employees: number }>("POST", "/leave/year-end", { confirm: "CARRY FORWARD" }),

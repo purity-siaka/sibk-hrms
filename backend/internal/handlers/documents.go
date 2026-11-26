@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -305,7 +306,8 @@ func (a *App) downloadDocument(w http.ResponseWriter, r *http.Request, act *auth
 	}
 	audit.Log(a.DB, act, clientIP(r), "document_download", "document", d.ID, "downloaded "+d.Type)
 	w.Header().Set("Content-Type", d.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", safeFilename(d.FileName)))
+	w.Header().Set("Content-Disposition", dispositionFor(r, d.FileName))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, "", st.ModTime(), f)
 	return nil
 }
@@ -608,4 +610,17 @@ func limitStr(s string, n int) string {
 		return s[:n]
 	}
 	return s
+}
+
+// dispositionFor returns "inline" when the caller asks to preview (?inline=1) and the file is a
+// type the browser can show safely (PDF or image); everything else is always a download.
+func dispositionFor(r *http.Request, name string) string {
+	kind := "attachment"
+	if r.URL.Query().Get("inline") == "1" {
+		switch strings.ToLower(filepath.Ext(name)) {
+		case ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp":
+			kind = "inline"
+		}
+	}
+	return fmt.Sprintf("%s; filename=%q", kind, safeFilename(name))
 }

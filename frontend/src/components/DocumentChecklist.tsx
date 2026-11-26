@@ -1,10 +1,11 @@
 "use client";
 
-import { CheckCircle2, Download, FileText, Trash2, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, Eye, FileText, Trash2, Upload, XCircle } from "lucide-react";
 import { useState } from "react";
 import type { ChecklistItem, DocumentRecord } from "@/lib/types";
 import { daysUntil, fmtDate, fmtSize } from "@/lib/format";
 import { Button } from "./Button";
+import { usePreview } from "./FilePreview";
 import { Input } from "./Fields";
 import { DOC_ACCEPT, DOC_MAX, FileDrop } from "./FileDrop";
 import { Modal } from "./Modal";
@@ -16,13 +17,15 @@ interface Props {
   /** "hr" shows verify/reject; "self" shows upload and delete-while-pending */
   mode: "hr" | "self";
   onUpload: (type: string, file: File, expiryDate: string) => Promise<void>;
-  onDownload: (d: DocumentRecord) => void;
+  /** kept for compatibility; files now open in the preview window */
+  onDownload?: (d: DocumentRecord) => void;
   onVerify?: (d: DocumentRecord) => Promise<void>;
   onReject?: (d: DocumentRecord, reason: string) => Promise<void>;
   onDelete?: (d: DocumentRecord) => Promise<void>;
 }
 
-export function DocumentChecklist({ items, mode, onUpload, onDownload, onVerify, onReject, onDelete }: Props) {
+export function DocumentChecklist({ items, mode, onUpload, onVerify, onReject, onDelete }: Props) {
+  const { preview, node: previewNode } = usePreview();
   const [uploadFor, setUploadFor] = useState<ChecklistItem | null>(null);
   const [rejecting, setRejecting] = useState<DocumentRecord | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -64,6 +67,7 @@ export function DocumentChecklist({ items, mode, onUpload, onDownload, onVerify,
 
   return (
     <>
+      {previewNode}
       <ul className="divide-y divide-line rounded-[14px] border border-line bg-white shadow-card">
         {items.map((it) => {
           const d = it.document;
@@ -99,8 +103,8 @@ export function DocumentChecklist({ items, mode, onUpload, onDownload, onVerify,
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 {d ? <StatusPill status={d.status} /> : it.required ? <StatusPill status="missing" label="Missing" /> : null}
                 {d && (
-                  <Button variant="ghost" size="sm" icon={<Download className="h-4 w-4" aria-hidden />} onClick={() => onDownload(d)} aria-label={`Download ${it.label}`}>
-                    Open
+                  <Button variant="ghost" size="sm" icon={<Eye className="h-4 w-4" aria-hidden />} onClick={() => preview({ path: `/documents/${d.id}/download`, fileName: d.fileName, title: it.label })} aria-label={`Preview ${it.label}`}>
+                    Preview
                   </Button>
                 )}
                 {mode === "hr" && d && d.status !== "verified" && (

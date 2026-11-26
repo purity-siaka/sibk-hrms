@@ -20,18 +20,21 @@ interface Props<T> {
   /** makes rows selectable by click, Enter or Space */
   onRowClick?: (row: T) => void;
   isSelected?: (row: T) => boolean;
+  /** tighter cells for wide tables */
+  compact?: boolean;
 }
 
-export function Table<T>({ columns, rows, rowKey, loading, empty, caption, onRowClick, isSelected }: Props<T>) {
+export function Table<T>({ columns, rows, rowKey, loading, empty, caption, onRowClick, isSelected, compact }: Props<T>) {
+  const pad = compact ? "px-2.5 py-2.5" : "px-4 py-3";
   if (!loading && rows.length === 0 && empty) return <>{empty}</>;
   return (
     <div className="overflow-x-auto rounded-[14px] border border-line bg-white shadow-card">
-      <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+      <table className={`w-full min-w-[640px] border-collapse text-left ${compact ? "text-[13px]" : "text-sm"}`}>
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr className="border-b border-line bg-[#F8F9FD]">
             {columns.map((c) => (
-              <th key={c.key} scope="col" className={`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted ${c.className ?? ""}`}>
+              <th key={c.key} scope="col" className={`${pad} text-xs font-semibold uppercase tracking-wide text-muted ${c.className ?? ""}`}>
                 {c.header}
               </th>
             ))}
@@ -42,7 +45,7 @@ export function Table<T>({ columns, rows, rowKey, loading, empty, caption, onRow
             ? Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b border-line last:border-0">
                   {columns.map((c) => (
-                    <td key={c.key} className="px-4 py-3">
+                    <td key={c.key} className={pad}>
                       <Skeleton className="h-4 w-full max-w-[160px]" />
                     </td>
                   ))}
@@ -67,7 +70,7 @@ export function Table<T>({ columns, rows, rowKey, loading, empty, caption, onRow
                   }
                 >
                   {columns.map((c) => (
-                    <td key={c.key} className={`px-4 py-3 ${c.className ?? ""}`}>
+                    <td key={c.key} className={`${pad} ${c.className ?? ""}`}>
                       {c.render(r)}
                     </td>
                   ))}

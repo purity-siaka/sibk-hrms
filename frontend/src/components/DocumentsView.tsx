@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { daysUntil, fmtDate } from "@/lib/format";
 import type { DocumentRecord } from "@/lib/types";
 import { Button } from "./Button";
+import { usePreview } from "./FilePreview";
 import { EmptyState, ErrorState } from "./EmptyState";
 import { FilterSelect } from "./Fields";
 import { FilterBar, PageHeader } from "./PageHeader";
@@ -21,6 +22,7 @@ const SIZE = 25;
 
 export function DocumentsView({ mode }: { mode: "pending" | "all" | "expiring" }) {
   const toast = useToast();
+  const { preview, node: previewNode } = usePreview();
   const ref = useReference();
   const [type, setType] = useState("");
   const [status, setStatus] = useState(mode === "pending" ? "pending" : "");
@@ -38,6 +40,7 @@ export function DocumentsView({ mode }: { mode: "pending" | "all" | "expiring" }
 
   return (
     <>
+      {previewNode}
       <PageHeader title={titles[mode][0]} subtitle={titles[mode][1]} />
       <FilterBar>
         <FilterSelect label="Document type" value={type} onChange={(v) => { setType(v); setPage(1); }}>
@@ -85,7 +88,7 @@ export function DocumentsView({ mode }: { mode: "pending" | "all" | "expiring" }
                 header: "Actions",
                 render: (d) => (
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => void toast.run(api.documents.download(d), "Download started")}>Open</Button>
+                    <Button size="sm" variant="ghost" onClick={() => preview({ path: `/documents/${d.id}/download`, fileName: d.fileName, title: d.fileName })}>Preview</Button>
                     {d.status !== "verified" && (
                       <Button size="sm" onClick={async () => { if (await toast.run(api.documents.verify(d.id), "Document verified")) list.reload(); }}>Verify</Button>
                     )}
