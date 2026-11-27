@@ -45,3 +45,14 @@ func TestOpenRejectsPathTraversal(t *testing.T) {
 		t.Fatal("traversal allowed")
 	}
 }
+
+func TestValidObjectKey(t *testing.T) {
+	if !validObjectKey("ab/abcdef.pdf") {
+		t.Fatal("valid object key rejected")
+	}
+	for _, key := range []string{"", "../secret", "a/../secret", "/absolute", `a\secret`, "a//b"} {
+		if validObjectKey(key) {
+			t.Errorf("invalid object key accepted: %q", key)
+		}
+	}
+}

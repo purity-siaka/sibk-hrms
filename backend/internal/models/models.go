@@ -96,8 +96,9 @@ func Contains(list []string, v string) bool { return contains(list, v) }
 func All() []interface{} {
 	return []interface{}{
 		&User{}, &Department{}, &Employee{}, &Document{}, &Job{}, &Applicant{}, &Interview{},
-		&TaskTemplate{}, &Task{}, &ChangeRequest{}, &Announcement{},
-		&Policy{}, &AuditLog{}, &Holiday{}, &LeaveRequest{},
+		&Task{}, &ChangeRequest{}, &Announcement{},
+		&Policy{}, &AuditLog{}, &Holiday{}, &LeaveRequest{}, &Training{}, &TrainingUpdate{}, &DataFix{},
+		&SignOff{}, &SignOffStep{}, &Notification{},
 	}
 }
 
@@ -259,24 +260,10 @@ type Interview struct {
 // TableName implements gorm Tabler.
 func (Interview) TableName() string { return "interviews" }
 
-// TaskTemplate defines a default onboarding or offboarding task.
-type TaskTemplate struct {
-	ID         uint   `gorm:"primaryKey"`
-	Kind       string `gorm:"size:20;not null;index"`
-	Title      string `gorm:"size:255;not null"`
-	OwnerRole  string `gorm:"size:20;not null"`
-	OffsetDays int    `gorm:"not null"`
-	Mandatory  bool   `gorm:"not null"`
-}
-
-// TableName implements gorm Tabler.
-func (TaskTemplate) TableName() string { return "task_templates" }
-
 // Task is a concrete onboarding/offboarding task for one employee.
 type Task struct {
 	ID              uint       `gorm:"primaryKey"`
 	EmployeeID      uint       `gorm:"not null;index"`
-	TemplateID      *uint      `gorm:"index"`
 	Kind            string     `gorm:"size:20;not null;index"`
 	Title           string     `gorm:"size:255;not null"`
 	OwnerRole       string     `gorm:"size:20;not null;index"`

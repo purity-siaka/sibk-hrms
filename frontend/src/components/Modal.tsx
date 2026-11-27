@@ -10,7 +10,7 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "md" | "lg" | "xl";
+  size?: "md" | "lg" | "xl" | "2xl";
   /** render as a right side panel */
   side?: boolean;
 }
@@ -57,7 +57,7 @@ export function Modal({ open, title, onClose, children, footer, size = "md", sid
   }, [open]);
 
   if (!open) return null;
-  const width = side ? "max-w-[520px]" : size === "xl" ? "max-w-4xl" : size === "lg" ? "max-w-2xl" : "max-w-lg";
+  const width = side ? "max-w-[520px]" : size === "2xl" ? "max-w-6xl" : size === "xl" ? "max-w-4xl" : size === "lg" ? "max-w-2xl" : "max-w-lg";
   return (
     <div className={`fixed inset-0 z-50 flex ${side ? "justify-end" : "items-center justify-center p-3 sm:p-6"}`}>
       <div className="absolute inset-0 bg-ink/50" onClick={onClose} aria-hidden />

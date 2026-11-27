@@ -65,7 +65,6 @@ type StaffLeave struct {
 	Taken           float64 `json:"takenDays"`
 	Remaining       float64 `json:"remainingDays"`
 	SickDays        float64 `json:"sickDays"`
-	TrainingDays    float64 `json:"trainingDays"`
 	OtherDays       float64 `json:"otherDays"`
 	PendingRequests int     `json:"pendingRequests"`
 	PendingDays     float64 `json:"pendingDays"`
@@ -103,9 +102,9 @@ func (a *App) staffRows(s reportScope) ([]StaffLeave, error) {
 		return nil, err
 	}
 	type agg struct {
-		sick, training, other, pendDays float64
-		pend                            int
-		away                            string
+		sick, other, pendDays float64
+		pend                  int
+		away                  string
 	}
 	by := map[uint]*agg{}
 	for i := range reqs {
@@ -124,8 +123,6 @@ func (a *App) staffRows(s reportScope) ([]StaffLeave, error) {
 				switch l.Type {
 				case models.LeaveSick:
 					g.sick += l.Days
-				case models.LeaveTraining:
-					g.training += l.Days
 				case models.LeaveAnnual:
 				default:
 					g.other += l.Days
@@ -155,7 +152,7 @@ func (a *App) staffRows(s reportScope) ([]StaffLeave, error) {
 		res = append(res, StaffLeave{
 			EmployeeID: e.ID, FullName: e.FullName(), JobTitle: e.JobTitle, ManagerName: mgr,
 			BroughtForward: e.LeaveCarriedForward, Accrued: e.LeaveAccruedDays, Taken: e.LeaveTakenDays, Remaining: rem,
-			SickDays: g.sick, TrainingDays: g.training, OtherDays: g.other,
+			SickDays: g.sick, OtherDays: g.other,
 			PendingRequests: g.pend, PendingDays: g.pendDays, OutNow: g.away != "", OutNowReason: g.away,
 			CarriedForward: cf,
 		})
@@ -187,12 +184,12 @@ type leaveReport struct {
 
 var leaveReportTitles = map[string]string{
 	"full": "Full leave report", "out-now": "Who's out now", "pending": "Pending approvals", "upcoming": "Upcoming leave (90 days)",
-	"balances": "Leave balances", "sick-no-note": "Sick leave without note", "audit": "Approval audit trail", "training": "Training applications",
+	"balances": "Leave balances", "sick-no-note": "Sick leave without note", "audit": "Approval audit trail",
 }
 
 // Reports in display order; managers get the simpler subset for their team.
 var (
-	hrReportKeys      = []string{"full", "pending", "upcoming", "out-now", "balances", "audit", "training", "sick-no-note"}
+	hrReportKeys      = []string{"full", "pending", "upcoming", "out-now", "balances", "audit", "sick-no-note"}
 	managerReportKeys = []string{"full", "pending", "upcoming", "out-now", "balances"}
 )
 
@@ -229,10 +226,10 @@ func (a *App) leaveReportFor(key string, s reportScope) (*leaveReport, error) {
 			return nil, err
 		}
 		rep.Columns = []string{"Employee", "Position", "Manager", "Brought forward", "Accrued", "Annual taken", "Annual remaining",
-			"Sick days", "Training days", "Other leave days", "Pending days", "Carried forward to " + strconv.Itoa(today.Year()+1)}
+			"Sick days", "Other leave days", "Pending days", "Carried forward to " + strconv.Itoa(today.Year()+1)}
 		for _, x := range staff {
 			rep.Rows = append(rep.Rows, []string{x.FullName, x.JobTitle, x.ManagerName, num(x.BroughtForward), num(x.Accrued), num(x.Taken), num(x.Remaining),
-				num(x.SickDays), num(x.TrainingDays), num(x.OtherDays), num(x.PendingDays), num(x.CarriedForward)})
+				num(x.SickDays), num(x.OtherDays), num(x.PendingDays), num(x.CarriedForward)})
 		}
 		return rep, nil
 	}
@@ -257,9 +254,6 @@ func (a *App) leaveReportFor(key string, s reportScope) (*leaveReport, error) {
 	case "sick-no-note":
 		q = q.Where("type = ? AND days > ? AND note_key = '' AND status IN ?", models.LeaveSick, models.SickNoteAfterDays, []string{models.LeavePending, models.LeaveApproved}).Order("from_date DESC, id")
 		rep.Columns = []string{"Employee", "From", "To", "Days", "Status"}
-	case "training":
-		q = q.Where("type = ? AND status IN ?", models.LeaveTraining, []string{models.LeavePending, models.LeaveApproved}).Order("from_date DESC, id")
-		rep.Columns = []string{"Employee", "Training", "Provider", "From", "To", "Days", "Status"}
 	case "audit":
 		q = q.Where("status <> ?", models.LeavePending).Order("COALESCE(decided_at, updated_at) DESC, id DESC").Limit(500)
 		rep.Columns = []string{"Employee", "Type", "From", "To", "Days", "Outcome", "Decided by", "Decided on", "Manager's comment", "Employee's reason"}
@@ -331,8 +325,6 @@ func (a *App) leaveReportFor(key string, s reportScope) (*leaveReport, error) {
 			row = []string{emp, typ, from, to, days}
 		case "sick-no-note":
 			row = []string{emp, from, to, days, capital(l.Status)}
-		case "training":
-			row = []string{emp, l.TrainingTitle, l.TrainingProvider, from, to, days, capital(l.Status)}
 		case "audit":
 			row = []string{emp, typ, from, to, days, capital(l.Status), by, dt(l.DecidedAt), l.Comment, l.Reason}
 		}
@@ -394,10 +386,7 @@ func (a *App) leaveReportList(w http.ResponseWriter, r *http.Request, act *auth.
 	return nil
 }
 
-// reportType labels a request in a report; training shows its title.
+// reportType labels a request in a report.
 func reportType(l *models.LeaveRequest) string {
-	if l.Type == models.LeaveTraining && l.TrainingTitle != "" {
-		return "Training: " + l.TrainingTitle
-	}
 	return models.LeaveTypeLabel(l.Type)
 }

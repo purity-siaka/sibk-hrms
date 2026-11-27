@@ -42,37 +42,8 @@ var staffList = []staff{
 var departmentNames = []string{"Executive Management", "Legal & Compliance", "Finance", "Risk & AML", "ICT",
 	"Public Relations & Communications", "Human Resources", "Administration"}
 
-type tpl struct {
-	kind, title, owner string
-	offset             int
-	mandatory          bool
-}
-
-// Defaults follow the SIBK HR Policy: onboarding (section 4) and the exit process (section 15).
-var templates = []tpl{
-	{models.KindOnboarding, "Collect signed employment contract and offer acceptance", "hr", 0, true},
-	{models.KindOnboarding, "Collect and verify required documents (ID, KRA PIN, certificates, good conduct)", "hr", 7, true},
-	{models.KindOnboarding, "Create email and system accounts", "it", -2, true},
-	{models.KindOnboarding, "Issue laptop, access card and equipment", "it", 0, true},
-	{models.KindOnboarding, "Register for payroll, NSSF and SHA", "finance", 5, true},
-	{models.KindOnboarding, "Induction and introduction to the team", "line_manager", 1, true},
-	{models.KindOnboarding, "Walk through the HR Policy and code of conduct", "hr", 3, true},
-	{models.KindOnboarding, "Set probation objectives", "line_manager", 14, false},
-	{models.KindOnboarding, "Probation review meeting", "line_manager", 75, true},
-	{models.KindOffboarding, "Receive and acknowledge resignation or termination notice", "hr", 0, true},
-	{models.KindOffboarding, "Handover of duties and files", "line_manager", -3, true},
-	{models.KindOffboarding, "Return laptop, access card and company property", "it", 0, true},
-	{models.KindOffboarding, "Disable email and system access", "it", 0, true},
-	{models.KindOffboarding, "Exit interview", "hr", -2, false},
-	{models.KindOffboarding, "Compute and pay final dues (within 7 working days)", "finance", 9, true},
-	{models.KindOffboarding, "Issue certificate of service", "hr", 9, false},
-}
-
 // Run seeds reference data, then users, then optional demo data. It is safe to run on every start.
 func Run(db *gorm.DB, cfg config.Config) error {
-	if err := seedTemplates(db); err != nil {
-		return err
-	}
 	if err := seedHolidays(db); err != nil {
 		return err
 	}
@@ -87,21 +58,6 @@ func Run(db *gorm.DB, cfg config.Config) error {
 		return seedDemo(db, cfg)
 	}
 	return seedAdmin(db, cfg)
-}
-
-func seedTemplates(db *gorm.DB) error {
-	var n int64
-	db.Model(&models.TaskTemplate{}).Count(&n)
-	if n > 0 {
-		return nil
-	}
-	for _, t := range templates {
-		row := models.TaskTemplate{Kind: t.kind, Title: t.title, OwnerRole: t.owner, OffsetDays: t.offset, Mandatory: t.mandatory}
-		if err := db.Create(&row).Error; err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func seedAdmin(db *gorm.DB, cfg config.Config) error {
@@ -212,27 +168,6 @@ func seedDemo(db *gorm.DB, cfg config.Config) error {
 }
 
 func seedDemoActivity(tx *gorm.DB, ids, deps map[string]uint, today time.Time) error {
-	// Onboarding tasks for the two newest employees.
-	for _, n := range []string{"Purity Siaka", "Moses Ngige"} {
-		var e models.Employee
-		if err := tx.First(&e, ids[n]).Error; err != nil {
-			return err
-		}
-		var tpls []models.TaskTemplate
-		tx.Where("kind = ?", models.KindOnboarding).Order("offset_days, id").Find(&tpls)
-		for i, t := range tpls {
-			due := e.StartDate.AddDate(0, 0, t.OffsetDays)
-			tid := t.ID
-			task := models.Task{EmployeeID: e.ID, TemplateID: &tid, Kind: t.Kind, Title: t.Title, OwnerRole: t.OwnerRole, Mandatory: t.Mandatory, DueDate: &due, Status: models.TaskPending}
-			if i < 4 {
-				now := time.Now().UTC()
-				task.Status, task.CompletedAt, task.CompletedByName = models.TaskDone, &now, "Caroline Mathai"
-			}
-			if err := tx.Create(&task).Error; err != nil {
-				return err
-			}
-		}
-	}
 	jobs := []models.Job{
 		{Title: "Investment Analyst", DepartmentID: ptr(deps["Finance"]), Headcount: 1, Status: models.JobOpen, Location: "Nairobi", Description: "Support fund analysis and reporting."},
 		{Title: "Compliance Officer", DepartmentID: ptr(deps["Legal & Compliance"]), Headcount: 1, Status: models.JobOpen, Location: "Nairobi", Description: "Support regulatory compliance and monitoring."},
@@ -261,7 +196,7 @@ func seedDemoActivity(tx *gorm.DB, ids, deps map[string]uint, today time.Time) e
 	if err := tx.Create(&cr).Error; err != nil {
 		return err
 	}
-	ann := models.Announcement{Title: "Welcome to the SIBK HR Management System", Pinned: true, CreatedByName: "Caroline Mathai",
+	ann := models.Announcement{Title: "Welcome to the SIBK Management System", Pinned: true, CreatedByName: "Caroline Mathai",
 		Body: "Please sign in, check your profile and upload your required documents (CV, certificates, Certificate of Good Conduct, ID, KRA PIN, passport photo and contract)."}
 	return tx.Create(&ann).Error
 }

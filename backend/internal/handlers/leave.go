@@ -209,8 +209,6 @@ type LeaveView struct {
 	Comment                string     `json:"comment,omitempty"`
 	HasNote                bool       `json:"hasNote"`
 	NoteFileName           string     `json:"noteFileName,omitempty"`
-	TrainingTitle          string     `json:"trainingTitle,omitempty"`
-	TrainingProvider       string     `json:"trainingProvider,omitempty"`
 	NeedsNote              bool       `json:"needsNote"`
 	CreatedAt              time.Time  `json:"createdAt"`
 	CanDecide              bool       `json:"canDecide"`
@@ -257,7 +255,6 @@ func (a *App) leaveViews(rows []models.LeaveRequest, act *auth.Actor) []LeaveVie
 			FromDate: dval(l.FromDate), ToDate: dval(l.ToDate), Days: l.Days, Reason: l.Reason, Status: l.Status,
 			ApproverType: l.ApproverType, ApproverName: approver, DaysRemainingAtRequest: l.DaysRemainingAtRequest,
 			DecidedByName: l.DecidedByName, DecidedAt: l.DecidedAt, Comment: l.Comment, HasNote: l.NoteKey != "",
-			TrainingTitle: l.TrainingTitle, TrainingProvider: l.TrainingProvider,
 			NoteFileName: l.NoteFileName, NeedsNote: needsNote(l), CreatedAt: l.CreatedAt,
 			CanDecide: a.mayDecide(act, l), CanCancel: open && (own || act.IsHR()),
 			CanAttach: l.Type == models.LeaveSick && open && (own || act.IsHR()),
@@ -315,17 +312,6 @@ func (a *App) createLeave(w http.ResponseWriter, r *http.Request, act *auth.Acto
 	} else if len(reason) > 1000 {
 		f["reason"] = "keep the reason under 1000 characters"
 	}
-	title, provider := trim(r.FormValue("trainingTitle")), trim(r.FormValue("trainingProvider"))
-	if typ == models.LeaveTraining {
-		if title == "" {
-			f["trainingTitle"] = "enter the name of the training"
-		}
-		if len(title) > 200 || len(provider) > 200 {
-			f["trainingTitle"] = "keep the training name and provider under 200 characters"
-		}
-	} else {
-		title, provider = "", ""
-	}
 	if len(f) == 0 && to.Before(*from) {
 		f["toDate"] = "must be on or after the first day"
 	}
@@ -365,7 +351,7 @@ func (a *App) createLeave(w http.ResponseWriter, r *http.Request, act *auth.Acto
 
 	l := models.LeaveRequest{
 		EmployeeID: e.ID, Type: typ, FromDate: *from, ToDate: *to, Days: days, Reason: reason, Status: models.LeavePending,
-		DaysRemainingAtRequest: bal.Remaining, CreatedByUserID: ptrUint(act.UserID), TrainingTitle: title, TrainingProvider: provider,
+		DaysRemainingAtRequest: bal.Remaining, CreatedByUserID: ptrUint(act.UserID),
 	}
 	l.ApproverType, l.ApproverEmployeeID = a.routeLeave(e)
 
@@ -793,5 +779,32 @@ func (a *App) yearEnd(w http.ResponseWriter, r *http.Request, act *auth.Actor) e
 	}
 	audit.Log(a.DB, act, clientIP(r), "leave_year_end", "employee", "all", fmt.Sprintf("year-end carry forward run for %d employees", res.RowsAffected))
 	httpx.JSON(w, http.StatusOK, map[string]int64{"employees": res.RowsAffected})
+	return nil
+}
+
+// deleteLeave removes a leave request for good. Only HR may do this; an approved annual request
+// gives its days back to the balance first, so the figures stay right everywhere.
+func (a *App) deleteLeave(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
+	l, err := a.loadLeave(r)
+	if err != nil {
+		return err
+	}
+	err = a.DB.Transaction(func(tx *gorm.DB) error {
+		if l.CountedInBalance {
+			if err := tx.Model(&models.Employee{}).Where("id = ?", l.EmployeeID).
+				UpdateColumn("leave_taken_days", gorm.Expr("GREATEST(leave_taken_days - ?, 0)", l.Days)).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Delete(&models.LeaveRequest{}, l.ID).Error
+	})
+	if err != nil {
+		return err
+	}
+	if l.NoteKey != "" {
+		_ = a.Store.Delete(l.NoteKey)
+	}
+	audit.Log(a.DB, act, clientIP(r), "leave_delete", "leave", l.ID, fmt.Sprintf("%s leave %s to %s deleted", models.LeaveTypeLabel(l.Type), dval(l.FromDate), dval(l.ToDate)))
+	w.WriteHeader(http.StatusNoContent)
 	return nil
 }

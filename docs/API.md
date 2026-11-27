@@ -63,18 +63,25 @@ and HR-only sensitive fields (omitted/empty unless caller is HR, or the employee
 - `GET /jobs?status=`; `POST /jobs`; `PUT /jobs/{id}`
 - `GET /applicants?jobId=&stage=&q=` -> `Applicant[]`; `POST /applicants` (JSON or multipart with optional `cv`); `PUT /applicants/{id}`
 - `POST /applicants/{id}/stage` `{stage,note?}`; stage `rejected` keeps the record (recruitment records are kept 6 years per HR Policy; never auto-delete).
-- `POST /applicants/{id}/hire` `{startDate,jobTitle?,departmentId?,managerId?,employmentType?}` -> `Employee` (status probation, onboarding tasks created, applicant stage hired, applicant.employeeId set)
+- `POST /applicants/{id}/hire` `{startDate,jobTitle?,departmentId?,managerId?,employmentType?}` -> `Employee` (status probation, applicant stage hired, applicant.employeeId set)
 - `GET /applicants/{id}/cv`; `GET/POST /applicants/{id}/interviews`
 
 ## Onboarding and offboarding
-`TaskTemplate = {id,kind,title,ownerRole,offsetDays,mandatory}` kind `onboarding|offboarding`.
-`Task = {id,employeeId,employeeName,kind,title,ownerRole,dueDate,status,completedAt,completedByName,notes}` status `pending|in_progress|done|not_applicable`.
-- `GET /task-templates?kind=`; `POST /task-templates`; `PUT /task-templates/{id}`; `DELETE /task-templates/{id}` (HR)
-- `GET /tasks?employeeId=&kind=&status=&ownerRole=&mine=1` (HR all; others see tasks for their owner role/team; `mine=1` = tasks owned by my role or my direct reports' onboarding if manager)
-- `PUT /tasks/{id}` `{status,notes?}`
-- `POST /employees/{id}/onboarding/start` (HR; idempotent; due = startDate + offsetDays)
-- `POST /employees/{id}/offboarding/start` `{exitDate}` (HR; sets status on_notice, exitDate; tasks due = exitDate + offsetDays). When all mandatory offboarding tasks are done the employee can be marked `exited` via `PUT /employees/{id}`.
-- Default templates are seeded from HR Policy section 15 (exit process) and section 4 (onboarding).
+There are no templates. HR adds, edits and deletes tasks directly on the Onboarding and Offboarding pages (and on the employee's "Onboarding and exit" tab).
+`Task = {id,employeeId,employeeName,kind,title,ownerRole,dueDate,status,completedAt,completedByName,notes}` kind `onboarding|offboarding`, status `pending|in_progress|done|not_applicable`. `employeeId` is who the task is for ("assigned to"); `ownerRole` is the team responsible.
+- `GET /tasks?employeeId=&kind=&status=&ownerRole=&mine=1` (HR all; others see tasks for their owner role/team)
+- `POST /tasks` `{employeeId,kind,title,ownerRole,dueDate?,notes?}` (HR)
+- `PUT /tasks/{id}` HR may change every field incl. `status`; a manager only `status` and `notes`
+- `DELETE /tasks/{id}` (HR)
+- `POST /employees/{id}/offboarding/start` `{exitDate}` (HR; sets status on_notice and exitDate; creates no tasks). When all offboarding tasks are done the employee can be marked `exited` via `PUT /employees/{id}`.
+
+## Training (separate from leave)
+`Training = {id,employeeId,employeeName,title,provider,startDate,endDate,sponsorship,status,notes,sibkAmount,selfAmount,updates[],canEdit}` sponsorship `self|sibk`, status `upcoming|ongoing|completed|cancelled`.
+`TrainingUpdate = {id,note,sponsorship,amount,byName,createdAt}`: every update states who is sponsoring; the optional `amount` (KES) is added to `sibkAmount` or `selfAmount`.
+- `GET /me/training`; `POST /me/training` `{title,provider?,startDate,endDate?,sponsorship,notes?}`
+- `GET /employees/{id}/training` (HR, the manager of the person, or the person)
+- `GET /training?sponsorship=&status=&employeeId=` (HR all; manager their team)
+- `PUT /training/{id}` (owner, their manager or HR); `POST /training/{id}/updates` `{note,sponsorship,amount?,status?}`; `DELETE /training/{id}` (HR)
 
 ## Profile change requests (HR)
 `ChangeRequest = {id,employeeId,employeeName,field,oldValue,newValue,reason,status,decidedByName,decidedAt,decisionNote,createdAt}`
@@ -95,7 +102,7 @@ and HR-only sensitive fields (omitted/empty unless caller is HR, or the employee
 
 ## Platform requirements (backend)
 Go 1.22+, standard `net/http` ServeMux with method+path patterns, GORM + Postgres (`gorm.io/driver/postgres`), bcrypt (`golang.org/x/crypto/bcrypt`), HS256 JWT implemented with `crypto/hmac` (no JWT library). Config by env: `PORT=8080 DATABASE_URL JWT_SECRET UPLOAD_DIR=./uploads CORS_ORIGIN=http://localhost:3000 SEED_DEMO=true ADMIN_EMAIL ADMIN_PASSWORD`. AutoMigrate on start. Health: `GET /healthz`. Graceful shutdown, request logging, panic recovery, security headers, body size limits, CORS.
-Seed (when `SEED_DEMO=true`): the 16 real staff names/roles/emails, departments, default task templates, jobs, a few sample documents, one `hr_admin` user for Caroline Mathai (`carol.mathai@salaaminvestments.com`) with password from `ADMIN_PASSWORD`; all other staff get `employee` users with `mustChangePassword=true`.
+Seed (when `SEED_DEMO=true`): the 16 real staff names/roles/emails, departments, jobs, a few sample documents, one `hr_admin` user for Caroline Mathai (`carol.mathai@salaaminvestments.com`) with password from `ADMIN_PASSWORD`; all other staff get `employee` users with `mustChangePassword=true`.
 
 ## Brand (frontend)
 SIBK HR Management System. Navy `#1B2F7A` (dark `#132160`), blue `#2F4DA8`, gold `#C8A04A` (soft `#F6EDD6`), white, ink `#16203F`, page background `#F4F6FB`. Font Inter.
@@ -110,8 +117,7 @@ Who decides: every request goes to the employee's line manager, whose decision i
 no manager stage: the person has no manager (for example the CEO) or the manager is marked `doesNotApprove`. Nobody can decide
 their own request. Staff without an email have no login; HR (Carol, as their manager) records and decides for them.
 
-Training: leave type `training` is a separate application (fields `trainingTitle`, `trainingProvider`), uses the same approval,
-is never deducted from the balance, and shows in "Who's out now" and the Training report.
+HR (only) can delete a leave request: `DELETE /leave/{id}` refunds the balance if the days had been counted and removes the sick note file.
 
 Emails (when SMTP_* is set; otherwise they are only logged): on every request HR_MAILBOX is told who asked and whose approval it
 awaits, the approver is asked to decide, the employee and HR are told the outcome, and HR is told about cancellations.
@@ -133,11 +139,28 @@ requests without one appear in the "Sick leave without note" report.
 | POST /api/leave/{id}/cancel | owner, HR | pending, or approved and not yet finished |
 | POST /api/leave/{id}/attachment | owner, HR | multipart `file` (sick leave only) |
 | GET /api/leave/{id}/attachment | owner, decider, HR | download (audited) |
-| GET /api/leave/staff | HR (all) / manager (direct reports) | one row per person: broughtForwardDays, accruedDays, takenDays, remainingDays, sickDays, trainingDays, otherDays, pendingRequests, pendingDays, outNow, outNowReason, carriedForwardDays (unused annual days that carry into next year) |
-| GET /api/leave-reports | HR / manager | reports the caller may open (HR: full, pending, upcoming, out-now, balances, audit, training, sick-no-note; manager: full, pending, upcoming, out-now, balances, limited to direct reports) |
+| GET /api/leave/staff | HR (all) / manager (direct reports) | one row per person: broughtForwardDays, accruedDays, takenDays, remainingDays, sickDays, otherDays, pendingRequests, pendingDays, outNow, outNowReason, carriedForwardDays (unused annual days that carry into next year) |
+| GET /api/leave-reports | HR / manager | reports the caller may open (HR: full, pending, upcoming, out-now, balances, audit, sick-no-note; manager: full, pending, upcoming, out-now, balances, limited to direct reports) |
 | GET /api/leave-reports/{name}[?format=xlsx\|csv] | HR / manager | JSON by default; `format=xlsx` returns an Excel workbook. `full` includes employee reasons and manager comments; `balances` ends with the "Carried forward to <next year>" column |
 | POST /api/leave/year-end | HR admin | `{confirm: "CARRY FORWARD"}`; carries all unused days forward, no cap |
 | GET/POST/DELETE /api/holidays | read: any; write: HR | `{name, date, repeatsYearly}` |
 
 
 Preview: `GET /documents/{id}/download`, `/leave/{id}/attachment` and `/policies/{id}/download` accept `?inline=1` to serve PDFs and images inline (everything else stays a download). Managers may read the sick note of their own direct reports.
+
+## Document sign-offs
+An uploaded PDF/JPG/PNG (up to 15 MB) that moves through signatories in the order the preparer chose.
+`SignOff = {id,title,processName,processId,processDepartment,processOwner,processManager,version,effectiveDate,reviewDate,documentStatus,classification,categoryDepartmentId,categoryName,preparerId,preparerName,fileName,contentType,status,returnNote,cycle,createdAt,completedAt,steps[],waitingForId,waitingForName,myTurn,myStepId,isPreparer}`
+status `in_progress|completed|rejected|returned`. `completed` = everyone signed = archived.
+`Step = {id,position,employeeId,name,email,label,status(pending|signed),signedAt,page,x,y}` (x, y are 0..1 from the top-left of the page).
+- `GET /signoffs?box=inbox|sent|archive|all&category=&q=&employeeId=` inbox = waiting for me; sent = I prepared, not finished; archive = completed where I prepared or signed (HR: all completed); `all` and `employeeId` are HR only
+- `GET /signoffs/summary` -> `{awaiting}` (sidebar badge); `GET /signoffs/signers` people that can be picked (active users with an employee record)
+- `POST /signoffs` multipart: `file`, `title`, `categoryDepartmentId` (required), `signers` = JSON `[{email,label?}]` in order (required), optional `processName, processId, processDepartment, processOwner, processManager, version, effectiveDate, reviewDate, documentStatus, classification`. The first signatory is notified.
+- `GET /signoffs/{id}` and `GET /signoffs/{id}/file?inline=1` (preparer, signatories, HR)
+- `POST /signoffs/{id}/sign` `{page,x,y}` only the current signatory; moves to the next and notifies them; the last signature completes (archives) and notifies the preparer
+- `POST /signoffs/{id}/reject` `{reason}` and `POST /signoffs/{id}/return` `{reason}` (current signatory; reason required; the preparer is notified)
+- `POST /signoffs/{id}/resubmit` multipart like create, all optional (preparer, after return/reject): resets every signature and restarts at number 1
+- `DELETE /signoffs/{id}` HR any time; the preparer until it is completed
+
+## Notifications
+`Notification = {id,kind,title,body,link,readAt,createdAt}`. `GET /notifications` -> `{unread,items}` (latest 30, the caller's own), `POST /notifications/{id}/read`, `POST /notifications/read-all`.

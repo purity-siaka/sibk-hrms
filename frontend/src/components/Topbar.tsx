@@ -4,14 +4,16 @@ import { LogOut, Menu } from "lucide-react";
 import type { User } from "@/lib/types";
 import { humanize, initials } from "@/lib/format";
 import { IconButton } from "./Button";
+import { NotificationBell } from "./NotificationBell";
 
-export function Topbar({ title, user, onMenu, onLogout }: { title: string; user: User; onMenu: () => void; onLogout: () => void }) {
+export function Topbar({ title, user, onMenu, onLogout, onUnread }: { title: string; user: User; onMenu: () => void; onLogout: () => void; onUnread?: (n: number) => void }) {
   return (
     <header className="flex items-center gap-3 border-b border-line bg-white px-4 py-3 sm:px-6">
       <IconButton label="Open menu" onClick={onMenu} className="lg:hidden" aria-controls="mobile-nav">
         <Menu className="h-5 w-5" />
       </IconButton>
       <p className="min-w-0 flex-1 truncate text-lg font-bold text-ink">{title}</p>
+      {user.employeeId && <NotificationBell onUnread={onUnread} />}
       <div className="flex items-center gap-3 rounded-full bg-bg py-1 pl-1 pr-3">
         <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">
           {initials(user.name)}

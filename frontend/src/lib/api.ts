@@ -31,10 +31,16 @@ import type {
   Reference,
   Role,
   Task,
+  TaskInput,
   TaskKind,
   TaskStatus,
-  TaskTemplate,
+  Training,
+  TrainingInput,
+  TrainingStatus,
+  Sponsorship,
   User,
+  SignOff,
+  AppNotification,
 } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/+$/, "");
@@ -210,7 +216,7 @@ export const api = {
     forEmployee: (id: number) => request<LeaveSummary>("GET", `/employees/${id}/leave`),
     calc: (from: string, to: string) => request<{ days: number; holidays: string[] }>("GET", "/leave/calc", undefined, { from, to }),
     /** Apply for leave. HR passes employeeId to record leave for someone else. */
-    apply: (b: { type: string; fromDate: string; toDate: string; reason: string; trainingTitle?: string; trainingProvider?: string }, file?: File | null, employeeId?: number) => {
+    apply: (b: { type: string; fromDate: string; toDate: string; reason: string }, file?: File | null, employeeId?: number) => {
       const f = new FormData();
       Object.entries(b).forEach(([k, v]) => v !== undefined && f.append(k, v));
       if (file) f.append("file", file);
@@ -219,6 +225,8 @@ export const api = {
     decide: (id: number, decision: "approve" | "reject", comment: string) =>
       request<Leave>("POST", `/leave/${id}/decide`, { decision, comment }),
     cancel: (id: number) => request<Leave>("POST", `/leave/${id}/cancel`),
+    /** HR only: removes the request from every report. */
+    remove: (id: number) => request<void>("DELETE", `/leave/${id}`),
     attach: (id: number, file: File) => {
       const f = new FormData();
       f.append("file", file);
@@ -279,7 +287,7 @@ export const api = {
     tasks: async (id: number) => norm(await request<Task[]>("GET", `/employees/${id}/tasks`)),
     directReports: async (id: number) =>
       norm(await request<EmployeeSummary[]>("GET", `/employees/${id}/direct-reports`)),
-    startOnboarding: (id: number) => request<unknown>("POST", `/employees/${id}/onboarding/start`),
+    training: async (id: number) => norm(await request<Training[]>("GET", `/employees/${id}/training`)),
     startOffboarding: (id: number, exitDate: string) =>
       request<unknown>("POST", `/employees/${id}/offboarding/start`, { exitDate }),
   },
@@ -356,16 +364,39 @@ export const api = {
     ) => request<Interview>("POST", `/applicants/${id}/interviews`, b),
   },
 
-  taskTemplates: {
-    list: async (kind?: TaskKind) => norm(await request<TaskTemplate[]>("GET", "/task-templates", undefined, { kind })),
-    create: (b: Omit<TaskTemplate, "id">) => request<TaskTemplate>("POST", "/task-templates", b),
-    update: (id: number, b: Omit<TaskTemplate, "id">) => request<TaskTemplate>("PUT", `/task-templates/${id}`, b),
-    remove: (id: number) => request<void>("DELETE", `/task-templates/${id}`),
+  signoffs: {
+    list: async (q: { box: string; category?: string; q?: string; employeeId?: number }) => norm(await request<SignOff[]>("GET", "/signoffs", undefined, q)),
+    get: (id: number) => request<SignOff>("GET", `/signoffs/${id}`),
+    summary: () => request<{ awaiting: number }>("GET", "/signoffs/summary"),
+    signers: async () => norm(await request<{ employeeId: number; name: string; email: string }[]>("GET", "/signoffs/signers")),
+    create: (form: FormData) => upload<SignOff>("/signoffs", form),
+    resubmit: (id: number, form: FormData) => upload<SignOff>(`/signoffs/${id}/resubmit`, form),
+    sign: (id: number, b: { page: number; x: number; y: number }) => request<SignOff>("POST", `/signoffs/${id}/sign`, b),
+    reject: (id: number, reason: string) => request<SignOff>("POST", `/signoffs/${id}/reject`, { reason }),
+    returnForCorrection: (id: number, reason: string) => request<SignOff>("POST", `/signoffs/${id}/return`, { reason }),
+    remove: (id: number) => request<void>("DELETE", `/signoffs/${id}`),
+    filePath: (id: number) => `/signoffs/${id}/file`,
+  },
+  notifications: {
+    list: () => request<{ unread: number; items: AppNotification[] }>("GET", "/notifications"),
+    read: (id: number) => request<void>("POST", `/notifications/${id}/read`),
+    readAll: () => request<void>("POST", "/notifications/read-all"),
+  },
+  training: {
+    mine: async () => norm(await request<Training[]>("GET", "/me/training")),
+    create: (b: Omit<TrainingInput, "endDate"> & { endDate?: string }) => request<Training>("POST", "/me/training", b),
+    list: async (q: { sponsorship?: string; status?: string }) => norm(await request<Training[]>("GET", "/training", undefined, q)),
+    update: (id: number, b: Partial<TrainingInput> & { status?: TrainingStatus }) => request<Training>("PUT", `/training/${id}`, b),
+    addUpdate: (id: number, b: { note: string; sponsorship: Sponsorship; amount?: number; status?: TrainingStatus }) =>
+      request<Training>("POST", `/training/${id}/updates`, b),
+    remove: (id: number) => request<void>("DELETE", `/training/${id}`),
   },
   tasks: {
     list: async (q: { employeeId?: number; kind?: TaskKind; status?: string; ownerRole?: string; mine?: boolean }) =>
       norm(await request<Task[]>("GET", "/tasks", undefined, { ...q, mine: q.mine ? 1 : undefined })),
-    update: (id: number, b: { status: TaskStatus; notes?: string }) => request<Task>("PUT", `/tasks/${id}`, b),
+    create: (b: TaskInput) => request<Task>("POST", "/tasks", b),
+    update: (id: number, b: Partial<TaskInput> & { status?: TaskStatus }) => request<Task>("PUT", `/tasks/${id}`, b),
+    remove: (id: number) => request<void>("DELETE", `/tasks/${id}`),
   },
 
   changeRequests: {

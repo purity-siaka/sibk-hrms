@@ -29,7 +29,7 @@ export default function LeaveApprovals() {
             rowKey={(l) => l.id}
             columns={[
               { key: "emp", header: "Employee", render: (l) => <span className="font-semibold text-ink">{l.employeeName}</span> },
-              { key: "type", header: "Request", render: (l) => (l.type === "training" ? `Training: ${l.trainingTitle ?? ""}` : `${l.typeLabel} leave`) },
+              { key: "type", header: "Request", render: (l) => `${l.typeLabel} leave` },
               { key: "dates", header: "Dates", render: (l) => <DateRange l={l} /> },
               { key: "days", header: "Days", render: (l) => l.days },
               { key: "who", header: "Awaiting approval of", render: (l) => l.approverName },

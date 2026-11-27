@@ -10,6 +10,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { api } from "@/lib/api";
 import { isHR } from "@/lib/access";
 import { useAuth } from "@/hooks/useAuth";
+import { NextHoliday } from "@/components/NextHoliday";
 import { LeaveReportsView } from "@/components/LeaveReportsView";
 import { StaffLeaveTable } from "@/components/StaffLeaveTable";
 
@@ -44,11 +45,7 @@ export default function MyLeave() {
             mine.data && (
               <>
                 <LeavePanel summary={mine.data} onChange={reloadAll} canApply />
-                {mine.data.upcomingHolidays && mine.data.upcomingHolidays.length > 0 && (
-                  <p className="text-sm text-muted">
-                    Next public holidays: {mine.data.upcomingHolidays.map((h) => `${h.name} (${h.date})`).join(", ")}
-                  </p>
-                )}
+                <NextHoliday holidays={mine.data.upcomingHolidays ?? []} />
               </>
             )
           ))}

@@ -11,7 +11,7 @@ const (
 	LeavePaternity    = "paternity"
 	LeaveCompassion   = "compassionate"
 	LeaveUnpaid       = "unpaid"
-	LeaveTraining     = "training" // a training application; never deducted from the balance
+	LeaveTraining     = "training" // legacy: training now has its own module; old rows are removed on start-up
 	SickNoteAfterDays = 2.0        // a sick note is expected when a sick leave is longer than this
 )
 
@@ -24,7 +24,7 @@ type LeaveType struct {
 // LeaveTypes lists every valid leave type, in display order.
 var LeaveTypes = []LeaveType{
 	{LeaveAnnual, "Annual"}, {LeaveSick, "Sick"}, {LeaveStudy, "Study"}, {LeaveMaternity, "Maternity"},
-	{LeavePaternity, "Paternity"}, {LeaveCompassion, "Compassionate"}, {LeaveUnpaid, "Unpaid"}, {LeaveTraining, "Training"},
+	{LeavePaternity, "Paternity"}, {LeaveCompassion, "Compassionate"}, {LeaveUnpaid, "Unpaid"},
 }
 
 // LeaveTypeLabel returns the display label of a leave type.

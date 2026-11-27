@@ -25,7 +25,7 @@ export function BrandTitle({ compact = false }: { compact?: boolean }) {
       <Monogram />
       <div className="leading-tight">
         <div className="text-[14px] font-bold text-white">Salaam Investment Bank</div>
-        <div className={`font-semibold text-gold ${compact ? "text-xs" : "text-[13px]"}`}>HR Management System</div>
+        <div className={`font-semibold text-gold ${compact ? "text-xs" : "text-[13px]"}`}>Management System</div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-// Command server runs the SIBK HR Management System API.
+// Command server runs the SIBK Management System API.
 package main
 
 import (
@@ -67,8 +67,23 @@ func run() error {
 	if err := seed.Run(db, cfg); err != nil {
 		return err
 	}
-	store, err := storage.NewDisk(cfg.UploadDir)
-	if err != nil {
+	var store storage.Store
+	if cfg.GCSBucket != "" {
+		gcs, gerr := storage.NewGCS(cfg.GCSBucket)
+		if gerr != nil {
+			return gerr
+		}
+		defer gcs.Close()
+		store = gcs
+		log.Printf("uploads: Google Cloud Storage bucket %s", cfg.GCSBucket)
+	} else {
+		disk, derr := storage.NewDisk(cfg.UploadDir)
+		if derr != nil {
+			return derr
+		}
+		store = disk
+	}
+	if err := seed.ApplyDataFixes(db, store); err != nil {
 		return err
 	}
 	app := handlers.New(db, cfg, store)
@@ -84,7 +99,7 @@ func run() error {
 	}
 	errc := make(chan error, 1)
 	go func() {
-		log.Printf("SIBK HRMS API listening on :%s (env=%s)", cfg.Port, cfg.Env)
+		log.Printf("SIBK Management System API listening on :%s (env=%s)", cfg.Port, cfg.Env)
 		errc <- srv.ListenAndServe()
 	}()
 	stop := make(chan os.Signal, 1)

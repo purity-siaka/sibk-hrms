@@ -20,6 +20,8 @@ const (
 	Any Kind = iota
 	// ImageOnly allows JPEG and PNG.
 	ImageOnly
+	// Viewable allows PDF, JPEG and PNG: files the sign-off viewer can render.
+	Viewable
 )
 
 // Errors returned by Save.
@@ -36,10 +38,17 @@ type Saved struct {
 	Size        int64
 }
 
+// File is what Open returns: enough for http.ServeContent. *os.File satisfies it.
+type File interface {
+	io.ReadSeeker
+	io.Closer
+	Stat() (os.FileInfo, error)
+}
+
 // Store is where files live. An S3 implementation can replace Disk without touching handlers.
 type Store interface {
 	Save(r io.Reader, filename string, max int64, kind Kind) (Saved, error)
-	Open(key string) (*os.File, error)
+	Open(key string) (File, error)
 	Delete(key string) error
 }
 
@@ -66,7 +75,7 @@ func classify(sniffed, ext string, kind Kind) (string, string, bool) {
 		return ".jpg", "image/jpeg", true
 	case strings.HasPrefix(sniffed, "image/png"):
 		return ".png", "image/png", true
-	case kind == Any && strings.HasPrefix(sniffed, "application/pdf"):
+	case (kind == Any || kind == Viewable) && strings.HasPrefix(sniffed, "application/pdf"):
 		return ".pdf", "application/pdf", true
 	case kind == Any && strings.HasPrefix(sniffed, "application/zip") && ext == ".docx":
 		return ".docx", docxType, true
@@ -133,12 +142,16 @@ func (d *Disk) resolve(key string) (string, error) {
 }
 
 // Open opens a stored file.
-func (d *Disk) Open(key string) (*os.File, error) {
+func (d *Disk) Open(key string) (File, error) {
 	p, err := d.resolve(key)
 	if err != nil {
 		return nil, err
 	}
-	return os.Open(p)
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 // Delete removes a stored file; a missing file is not an error.

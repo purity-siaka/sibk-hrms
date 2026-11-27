@@ -17,6 +17,14 @@ import { ApiError, api } from "@/lib/api";
 import { fmtDate, humanize } from "@/lib/format";
 import { CHANGE_FIELDS, type Employee } from "@/lib/types";
 
+function Line({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="min-w-0 break-words text-[15px] text-ink">
+      <dt className="inline font-bold uppercase">{label}:</dt> <dd className="inline">{value || <span className="text-muted">Not provided</span>}</dd>
+    </div>
+  );
+}
+
 function Row({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
@@ -138,14 +146,14 @@ export default function MyProfile() {
               <StatusPill status={e.status} />
             </div>
             <p className="text-muted">{e.jobTitle}</p>
-            <dl className="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Row label="Employee no." value={e.employeeNo} />
-              <Row label="Work email" value={e.email} />
-              <Row label="Department" value={e.departmentName} />
-              <Row label="Manager" value={e.managerName} />
-              <Row label="Employment type" value={humanize(e.employmentType)} />
-              <Row label="Start date" value={fmtDate(e.startDate)} />
-              <Row label="Probation ends" value={fmtDate(e.probationEndDate)} />
+            <dl className="mt-4 grid gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Line label="Staff no." value={e.employeeNo} />
+              <Line label="Work email" value={e.email} />
+              <Line label="Department" value={e.departmentName} />
+              <Line label="Manager" value={e.managerName} />
+              <Line label="Employment type" value={humanize(e.employmentType)} />
+              <Line label="Start date" value={fmtDate(e.startDate)} />
+              <Line label="Probation ends" value={fmtDate(e.probationEndDate)} />
             </dl>
           </div>
         </div>

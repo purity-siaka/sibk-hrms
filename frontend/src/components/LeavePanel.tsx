@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, GraduationCap, Paperclip, Plus } from "lucide-react";
+import { Eye, Paperclip, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ApplyLeaveModal } from "./ApplyLeaveModal";
 import { Button } from "./Button";
@@ -11,6 +11,8 @@ import { Pill, StatusPill } from "./Pill";
 import { ReasonModal } from "./ReasonModal";
 import { Table } from "./Table";
 import { useToast } from "./Toast";
+import { useAuth } from "@/hooks/useAuth";
+import { isHR } from "@/lib/access";
 import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import type { Leave, LeaveSummary } from "@/lib/types";
@@ -19,15 +21,9 @@ export function DateRange({ l }: { l: Pick<Leave, "fromDate" | "toDate"> }) {
   return <span>{l.fromDate === l.toDate ? fmtDate(l.fromDate) : `${fmtDate(l.fromDate)} to ${fmtDate(l.toDate)}`}</span>;
 }
 
-/** Leave type; a training application shows its title and provider. */
+/** Leave type. */
 export function TypeCell({ l }: { l: Leave }) {
-  if (l.type !== "training") return <span className="font-semibold text-ink">{l.typeLabel}</span>;
-  return (
-    <div>
-      <span className="font-semibold text-ink">Training</span>
-      <p className="text-xs text-muted">{[l.trainingTitle, l.trainingProvider].filter(Boolean).join(", ")}</p>
-    </div>
-  );
+  return <span className="font-semibold text-ink">{l.typeLabel}</span>;
 }
 
 /** Request status with the sick-note warning. */
@@ -44,6 +40,8 @@ export function LeaveStatusCell({ l }: { l: Leave }) {
 export function LeaveActions({ l, onChange }: { l: Leave; onChange: () => void }) {
   const toast = useToast();
   const { preview, node: previewNode } = usePreview();
+  const { user } = useAuth();
+  const hr = isHR(user);
   return (
     <div className="flex flex-wrap items-center gap-2">
       {previewNode}
@@ -66,6 +64,18 @@ export function LeaveActions({ l, onChange }: { l: Leave; onChange: () => void }
             }}
           />
         </label>
+      )}
+      {hr && (
+        <button
+          type="button"
+          aria-label={`Delete ${l.typeLabel} leave request of ${l.employeeName}`}
+          onClick={async () => {
+            if (window.confirm(`Delete this ${l.typeLabel.toLowerCase()} leave request of ${l.employeeName}? This removes it from every report and cannot be undone.`) && (await toast.run(api.leave.remove(l.id), "Request deleted"))) onChange();
+          }}
+          className="inline-flex items-center text-danger hover:opacity-80"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </button>
       )}
       {l.canCancel && (
         <button
@@ -97,7 +107,7 @@ export function LeavePanel({
   employeeId?: number;
   employeeName?: string;
 }) {
-  const [applying, setApplying] = useState<null | "leave" | "training">(null);
+  const [applying, setApplying] = useState(false);
   const b = summary.balance;
   return (
     <>
@@ -112,14 +122,9 @@ export function LeavePanel({
         padded={false}
         action={
           canApply && (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="ghost" icon={<GraduationCap className="h-4 w-4" aria-hidden />} onClick={() => setApplying("training")}>
-                {employeeId ? "Record training" : "Training application"}
-              </Button>
-              <Button icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setApplying("leave")}>
-                {employeeId ? "Record leave" : "Apply for leave"}
-              </Button>
-            </div>
+            <Button icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setApplying(true)}>
+              {employeeId ? "Record leave" : "Apply for leave"}
+            </Button>
           )
         }
       >
@@ -157,9 +162,8 @@ export function LeavePanel({
         </div>
       </Card>
       <ApplyLeaveModal
-        open={applying !== null}
-        mode={applying === "training" ? "training" : "leave"}
-        onClose={() => setApplying(null)}
+        open={applying}
+        onClose={() => setApplying(false)}
         onDone={onChange}
         employeeId={employeeId}
         employeeName={employeeName}
@@ -189,7 +193,7 @@ export function ApprovalList({ items, onChange, empty }: { items: Leave[]; onCha
               <dt className="text-muted">Employee</dt>
               <dd className="font-semibold text-ink">{l.employeeName}</dd>
               <dt className="text-muted">Leave type</dt>
-              <dd className="text-ink">{l.type === "training" ? `Training: ${l.trainingTitle ?? ""}${l.trainingProvider ? `, ${l.trainingProvider}` : ""}` : l.typeLabel}</dd>
+              <dd className="text-ink">{l.typeLabel}</dd>
               <dt className="text-muted">From</dt>
               <dd className="text-ink">{fmtDate(l.fromDate)}</dd>
               <dt className="text-muted">To</dt>

@@ -15,7 +15,10 @@ import { LeaveBalanceModal } from "@/components/LeaveBalanceModal";
 import { LeavePanel } from "@/components/LeavePanel";
 import { Modal } from "@/components/Modal";
 import { StatusPill } from "@/components/Pill";
+import { TaskCards } from "@/components/TaskList";
+import { TrainingPanel } from "@/components/TrainingPanel";
 import { BlockSkeleton } from "@/components/Skeleton";
+import { SignOffList } from "@/components/SignOffList";
 import { Tabs } from "@/components/Tabs";
 import { useToast } from "@/components/Toast";
 import { useAsync } from "@/hooks/useAsync";
@@ -23,7 +26,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 import { isHR } from "@/lib/access";
 import { fmtDate, humanize, todayISO } from "@/lib/format";
-import type { Employee, Task, TaskStatus } from "@/lib/types";
+import type { Employee } from "@/lib/types";
 
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -34,42 +37,21 @@ function Field({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+/** Inline "LABEL: value" line used in the profile header. */
+function Line({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="min-w-0 break-words text-[15px] text-ink">
+      <dt className="inline font-bold uppercase">{label}:</dt> <dd className="inline">{value || <span className="text-muted">Not provided</span>}</dd>
+    </div>
+  );
+}
+
 function Hidden({ label }: { label: string }) {
   return (
     <div>
       <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
       <dd className="mt-0.5 text-sm italic text-muted">Visible to HR only</dd>
     </div>
-  );
-}
-
-function TaskList({ tasks, canEdit, onStatus }: { tasks: Task[]; canEdit: boolean; onStatus: (t: Task, s: TaskStatus) => void }) {
-  if (tasks.length === 0) return <EmptyState title="No tasks yet" text="Tasks are created from the onboarding or offboarding templates." />;
-  return (
-    <ul className="divide-y divide-line rounded-[14px] border border-line bg-white shadow-card">
-      {tasks.map((t) => (
-        <li key={t.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold text-ink">{t.title}</p>
-            <p className="text-sm text-muted">
-              {humanize(t.kind)} · {humanize(t.ownerRole)} · due {fmtDate(t.dueDate) || "n/a"}
-              {t.completedByName && ` · done by ${t.completedByName}`}
-            </p>
-          </div>
-          <StatusPill status={t.status} />
-          {canEdit && t.status !== "done" && (
-            <Button size="sm" variant="ghost" onClick={() => onStatus(t, "done")}>
-              Mark done
-            </Button>
-          )}
-          {canEdit && t.status === "done" && (
-            <Button size="sm" variant="quiet" onClick={() => onStatus(t, "pending")}>
-              Reopen
-            </Button>
-          )}
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -90,6 +72,7 @@ export default function EmployeeDetailPage() {
   const emp = useAsync(() => api.employees.get(id), [id]);
   const team = useAsync(() => api.employees.directReports(id), [id]);
   const tasks = useAsync(() => api.employees.tasks(id), [id]);
+  const training = useAsync(() => api.employees.training(id), [id]);
   const leave = useAsync(() => api.leave.forEmployee(id), [id]);
   const docs = useAsync(() => (hr ? api.employees.checklist(id) : Promise.resolve([])), [id, hr]);
   const managers = useAsync(() => (hr ? api.employees.list({ pageSize: 100 }) : Promise.resolve({ items: [], total: 0 })), [hr]);
@@ -105,9 +88,6 @@ export default function EmployeeDetailPage() {
     tasks.reload();
     docs.reload();
   };
-  const setTaskStatus = async (t: Task, status: TaskStatus) => {
-    if (await toast.run(api.tasks.update(t.id, { status }), "Task updated")) tasks.reload();
-  };
   const onPhoto = async (f?: File) => {
     if (!f) return;
     if (await toast.run(api.employees.uploadPhoto(e.id, f), "Photo updated")) setPhotoVersion((v) => v + 1);
@@ -119,6 +99,8 @@ export default function EmployeeDetailPage() {
     { key: "private", label: "Private information" },
     ...(hr || e.id === user?.employeeId ? [{ key: "docs", label: "Documents", badge: e.documentsRequired ? `${e.documentsVerified ?? 0}/${e.documentsRequired}` : undefined }] : []),
     { key: "leave", label: "Leave", badge: leave.data?.balance.pendingDays ? `${leave.data.balance.pendingDays} pending` : undefined },
+    { key: "training", label: "Training", badge: training.data?.filter((t) => t.status === "upcoming" || t.status === "ongoing").length || undefined },
+    ...(hr ? [{ key: "signoffs", label: "Sign-offs" }] : []),
     { key: "tasks", label: "Onboarding and exit", badge: tasks.data?.filter((t) => t.status === "pending" || t.status === "in_progress").length || undefined },
     { key: "team", label: "Direct reports", badge: team.data?.length || undefined },
   ];
@@ -155,13 +137,15 @@ export default function EmployeeDetailPage() {
               <StatusPill status={e.status} />
             </div>
             <p className="mt-1 text-base text-muted">{e.jobTitle}</p>
-            <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Employee no." value={e.employeeNo} />
-              <Field label="Work email" value={e.email} />
-              <Field label="Phone" value={e.phone} />
-              <Field label="Department" value={e.departmentName} />
-              <Field label="Manager" value={e.managerName} />
-              <Field label="Start date" value={fmtDate(e.startDate)} />
+            <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Line label="Staff no." value={e.employeeNo} />
+              <Line label="Work email" value={e.email} />
+              <Line label="Department" value={e.departmentName} />
+              <Line label="Manager" value={e.managerName} />
+              <Line label="Employment type" value={humanize(e.employmentType)} />
+              <Line label="Start date" value={fmtDate(e.startDate)} />
+              <Line label="Probation ends" value={fmtDate(e.probationEndDate)} />
+              <Line label="Phone" value={e.phone} />
             </dl>
           </div>
           {hr && (
@@ -275,16 +259,16 @@ export default function EmployeeDetailPage() {
               </>
             )
           ))}
-        {tab === "tasks" && (
-          <>
-            {hr && tasks.data && tasks.data.length === 0 && e.status !== "exited" && (
-              <Button variant="gold" onClick={async () => { if (await toast.run(api.employees.startOnboarding(e.id), "Onboarding tasks created")) tasks.reload(); }}>
-                Start onboarding
-              </Button>
-            )}
-            <TaskList tasks={tasks.data ?? []} canEdit={canManageTasks} onStatus={setTaskStatus} />
-          </>
-        )}
+        {tab === "training" &&
+          (training.error ? (
+            <ErrorState error={training.error} onRetry={training.reload} />
+          ) : training.loading && !training.data ? (
+            <BlockSkeleton lines={4} />
+          ) : (
+            <TrainingPanel items={training.data ?? []} onChange={training.reload} canAdd={e.id === user?.employeeId} emptyText="No training recorded for this person." />
+          ))}
+        {tab === "signoffs" && hr && <SignOffList employeeId={e.id} />}
+        {tab === "tasks" && <TaskCards tasks={tasks.data ?? []} kind={null} hr={hr} canMark={canManageTasks} onChange={tasks.reload} employeeId={e.id} emptyText="No onboarding or offboarding tasks for this person." />}
         {tab === "team" &&
           (team.data && team.data.length > 0 ? (
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

@@ -228,13 +228,13 @@ export interface HireInput {
 export type TaskKind = "onboarding" | "offboarding";
 export type TaskStatus = "pending" | "in_progress" | "done" | "not_applicable";
 
-export interface TaskTemplate {
-  id: number;
+export interface TaskInput {
+  employeeId: number;
   kind: TaskKind;
   title: string;
   ownerRole: OwnerRole;
-  offsetDays: number;
-  mandatory: boolean;
+  dueDate: string;
+  notes: string;
 }
 
 export interface Task {
@@ -386,8 +386,6 @@ export interface Leave {
   decidedByName?: string;
   decidedAt: string | null;
   comment?: string;
-  trainingTitle?: string;
-  trainingProvider?: string;
   hasNote: boolean;
   noteFileName?: string;
   needsNote: boolean;
@@ -429,7 +427,6 @@ export interface StaffLeave {
   takenDays: number;
   remainingDays: number;
   sickDays: number;
-  trainingDays: number;
   otherDays: number;
   pendingRequests: number;
   pendingDays: number;
@@ -437,4 +434,100 @@ export interface StaffLeave {
   outNowReason?: string;
   /** annual-leave days not taken, which move into next year */
   carriedForwardDays: number;
+}
+
+export type Sponsorship = "self" | "sibk";
+export type TrainingStatus = "upcoming" | "ongoing" | "completed" | "cancelled";
+
+export interface TrainingUpdate {
+  id: number;
+  note: string;
+  sponsorship: Sponsorship;
+  amount: number | null;
+  byName: string;
+  createdAt: string;
+}
+
+export interface Training {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  title: string;
+  provider: string;
+  startDate: string;
+  endDate: string | null;
+  sponsorship: Sponsorship;
+  status: TrainingStatus;
+  notes: string;
+  sibkAmount: number;
+  selfAmount: number;
+  updates: TrainingUpdate[];
+  canEdit: boolean;
+}
+
+export interface TrainingInput {
+  title: string;
+  provider: string;
+  startDate: string;
+  endDate: string;
+  sponsorship: Sponsorship;
+  notes: string;
+}
+
+export type SignOffStatus = "in_progress" | "completed" | "rejected" | "returned";
+
+export interface SignOffStep {
+  id: number;
+  position: number;
+  employeeId: number;
+  name: string;
+  email: string;
+  label: string;
+  status: "pending" | "signed";
+  signedAt: string | null;
+  page: number;
+  x: number;
+  y: number;
+}
+
+export interface SignOff {
+  id: number;
+  title: string;
+  processName: string;
+  processId: string;
+  processDepartment: string;
+  processOwner: string;
+  processManager: string;
+  version: string;
+  effectiveDate: string | null;
+  reviewDate: string | null;
+  documentStatus: string;
+  classification: string;
+  categoryDepartmentId: number | null;
+  categoryName: string;
+  preparerId: number;
+  preparerName: string;
+  fileName: string;
+  contentType: string;
+  status: SignOffStatus;
+  returnNote: string;
+  cycle: number;
+  createdAt: string;
+  completedAt: string | null;
+  steps: SignOffStep[];
+  waitingForId: number | null;
+  waitingForName: string;
+  myTurn: boolean;
+  myStepId: number | null;
+  isPreparer: boolean;
+}
+
+export interface AppNotification {
+  id: number;
+  kind: string;
+  title: string;
+  body: string;
+  link: string;
+  readAt: string | null;
+  createdAt: string;
 }

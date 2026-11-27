@@ -16,6 +16,7 @@ type Config struct {
 	DatabaseURL   string
 	JWTSecret     string
 	UploadDir     string
+	GCSBucket     string
 	CORSOrigin    string
 	Env           string
 	AdminEmail    string
@@ -46,6 +47,7 @@ func Load() (Config, error) {
 		DatabaseURL:   get("DATABASE_URL", "postgres://hrms:hrms@localhost:5432/hrms?sslmode=disable"),
 		JWTSecret:     get("JWT_SECRET", defaultSecret),
 		UploadDir:     get("UPLOAD_DIR", "./uploads"),
+		GCSBucket:     get("GCS_BUCKET", ""),
 		CORSOrigin:    get("CORS_ORIGIN", "http://localhost:3000"),
 		Env:           get("APP_ENV", "production"),
 		AdminEmail:    strings.ToLower(get("ADMIN_EMAIL", "")),

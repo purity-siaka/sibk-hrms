@@ -1,4 +1,4 @@
-# SIBK HR Management System
+# SIBK Management System
 
 Full-stack HR system for Salaam Investment Bank Kenya: employee records and personal portals, document collection and verification, recruitment, onboarding and exit, profile change requests, announcements, policies, reports and an audit trail. **Leave management, overtime and salary advances are not included** (leave is delivered separately in Power Apps).
 

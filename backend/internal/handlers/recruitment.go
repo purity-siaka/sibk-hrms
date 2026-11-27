@@ -472,8 +472,7 @@ func (a *App) hireApplicant(w http.ResponseWriter, r *http.Request, act *auth.Ac
 		if err := tx.Model(ap).Updates(map[string]interface{}{"stage": models.StageHired, "employee_id": e.ID, "stage_changed_at": time.Now().UTC()}).Error; err != nil {
 			return err
 		}
-		_, err = createTasks(tx, &e, models.KindOnboarding, *start)
-		return err
+		return nil
 	})
 	if err != nil {
 		return err

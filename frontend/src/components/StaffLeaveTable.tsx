@@ -44,7 +44,6 @@ export function StaffLeaveTable({ staff, selected, onSelect }: Props) {
             { key: "taken", header: "Taken", render: (s) => s.takenDays },
             { key: "left", header: "Left", render: (s) => <strong className="text-ink">{s.remainingDays}</strong> },
             { key: "sick", header: "Sick", hideOnMobile: true, render: (s) => dash(s.sickDays) },
-            { key: "trn", header: "Training", hideOnMobile: true, render: (s) => dash(s.trainingDays) },
             { key: "oth", header: "Other", hideOnMobile: true, render: (s) => dash(s.otherDays) },
             { key: "pend", header: "Pending", render: (s) => (s.pendingRequests > 0 ? `${s.pendingRequests} req. / ${s.pendingDays}d` : "–") },
             { key: "out", header: "Today", render: (s) => (s.outNow ? <Pill tone="info">{s.outNowReason}</Pill> : <span className="text-muted">In</span>) },

@@ -33,11 +33,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     () => ({
       success: (m) => push("success", m),
       error: (m) => push("error", m),
-      run: async (p, msg) => {
+      run: async <T,>(p: Promise<T>, msg: string): Promise<T | undefined> => {
         try {
           const r = await p;
           push("success", msg);
-          return r;
+          return (r === undefined ? true : r) as T;
         } catch (e) {
           push("error", e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong");
           return undefined;

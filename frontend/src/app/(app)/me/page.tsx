@@ -29,7 +29,7 @@ export default function MeHome() {
             <p className="text-muted">{e.jobTitle}{e.departmentName && ` · ${e.departmentName}`}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
               <StatusPill status={e.status} />
-              <span>{e.employeeNo}</span>
+              <span>Staff no. {e.employeeNo}</span>
               {e.managerName && <span>· Reports to {e.managerName}</span>}
             </div>
           </div>

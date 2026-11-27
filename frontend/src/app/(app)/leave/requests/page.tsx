@@ -27,7 +27,7 @@ export default function AllLeave() {
 
   return (
     <>
-      <PageHeader title="All requests" subtitle="Every leave and training request across the bank." />
+      <PageHeader title="All requests" subtitle="Every leave request across the bank." />
       <FilterBar>
         <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Search by employee name" label="Search leave requests" />
         <FilterSelect label="Status" value={status} onChange={(v) => { setStatus(v); setPage(1); }}>

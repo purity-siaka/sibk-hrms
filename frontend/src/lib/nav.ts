@@ -4,7 +4,9 @@ import {
   CalendarDays,
   ClipboardCheck,
   FileCheck2,
+  FileSignature,
   FileText,
+  GraduationCap,
   LayoutDashboard,
   Megaphone,
   Settings2,
@@ -91,6 +93,24 @@ const MODULES: NavModule[] = [
     ],
   },
   {
+    key: "signoffs",
+    label: "Document Sign-offs",
+    icon: FileSignature,
+    href: "/signoffs",
+    prefixes: ["/signoffs"],
+    roles: ["hr", "manager"],
+    ribbon: [],
+  },
+  {
+    key: "training",
+    label: "Training",
+    icon: GraduationCap,
+    href: "/training",
+    prefixes: ["/training"],
+    roles: ["hr", "manager"],
+    ribbon: [],
+  },
+  {
     key: "tasks",
     label: "Onboarding",
     icon: ClipboardCheck,
@@ -100,7 +120,6 @@ const MODULES: NavModule[] = [
     ribbon: [
       { label: "Onboarding", href: "/tasks" },
       { label: "Offboarding", href: "/tasks/offboarding" },
-      { label: "Templates", href: "/tasks/templates", roles: ["hr"] },
     ],
   },
   {
@@ -133,7 +152,9 @@ export const PORTAL_RIBBON: RibbonItem[] = [
   { label: "Home", href: "/me" },
   { label: "My profile", href: "/me/profile" },
   { label: "My leave", href: "/me/leave" },
+  { label: "My training", href: "/me/training" },
   { label: "My documents", href: "/me/documents" },
+  { label: "Document Sign-offs", href: "/signoffs" },
   { label: "Policies", href: "/me/policies" },
 ];
 
@@ -151,6 +172,8 @@ const EMPLOYEE_NAV: NavModule[] = [
   portalModule("me-home", "Home", LayoutDashboard, "/me"),
   portalModule("me-profile", "My profile", UserCircle2, "/me/profile"),
   portalModule("me-leave", "My leave", CalendarDays, "/me/leave"),
+  portalModule("me-training", "My training", GraduationCap, "/me/training"),
+  portalModule("me-signoffs", "Document Sign-offs", FileSignature, "/signoffs"),
   portalModule("me-docs", "My documents", FileCheck2, "/me/documents"),
   portalModule("me-pol", "Policies", FileText, "/me/policies"),
 ];

@@ -13,157 +13,6 @@ import (
 	"sibk-hrms/backend/internal/policy"
 )
 
-// createTasks creates the tasks of kind for e from the templates, skipping templates already applied.
-// Due dates are base + offsetDays. It returns the number of tasks created.
-func createTasks(tx *gorm.DB, e *models.Employee, kind string, base time.Time) (int, error) {
-	var tpls []models.TaskTemplate
-	if err := tx.Where("kind = ?", kind).Order("offset_days, id").Find(&tpls).Error; err != nil {
-		return 0, err
-	}
-	var existing []uint
-	if err := tx.Model(&models.Task{}).Where("employee_id = ? AND kind = ? AND template_id IS NOT NULL", e.ID, kind).Pluck("template_id", &existing).Error; err != nil {
-		return 0, err
-	}
-	have := map[uint]bool{}
-	for _, id := range existing {
-		have[id] = true
-	}
-	n := 0
-	for _, t := range tpls {
-		if have[t.ID] {
-			continue
-		}
-		due := base.AddDate(0, 0, t.OffsetDays)
-		tid := t.ID
-		task := models.Task{EmployeeID: e.ID, TemplateID: &tid, Kind: kind, Title: t.Title, OwnerRole: t.OwnerRole,
-			Mandatory: t.Mandatory, DueDate: &due, Status: models.TaskPending}
-		if err := tx.Create(&task).Error; err != nil {
-			return n, err
-		}
-		n++
-	}
-	return n, nil
-}
-
-// ---- templates ----
-
-type templateView struct {
-	ID         uint   `json:"id"`
-	Kind       string `json:"kind"`
-	Title      string `json:"title"`
-	OwnerRole  string `json:"ownerRole"`
-	OffsetDays int    `json:"offsetDays"`
-	Mandatory  bool   `json:"mandatory"`
-}
-
-func toTemplateView(t models.TaskTemplate) templateView {
-	return templateView{t.ID, t.Kind, t.Title, t.OwnerRole, t.OffsetDays, t.Mandatory}
-}
-
-func (a *App) listTemplates(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
-	q := a.DB.Model(&models.TaskTemplate{})
-	if v := r.URL.Query().Get("kind"); v != "" {
-		q = q.Where("kind = ?", v)
-	}
-	var rows []models.TaskTemplate
-	if err := q.Order("kind, offset_days, id").Find(&rows).Error; err != nil {
-		return err
-	}
-	out := make([]templateView, len(rows))
-	for i, t := range rows {
-		out[i] = toTemplateView(t)
-	}
-	httpx.JSON(w, http.StatusOK, out)
-	return nil
-}
-
-func (a *App) saveTemplate(w http.ResponseWriter, r *http.Request, act *auth.Actor, t *models.TaskTemplate, status int) error {
-	var in struct {
-		Kind       *string `json:"kind"`
-		Title      *string `json:"title"`
-		OwnerRole  *string `json:"ownerRole"`
-		OffsetDays *int    `json:"offsetDays"`
-		Mandatory  *bool   `json:"mandatory"`
-	}
-	if err := httpx.Decode(w, r, &in); err != nil {
-		return err
-	}
-	f := fieldErrs{}
-	if in.Kind != nil {
-		if *in.Kind != models.KindOnboarding && *in.Kind != models.KindOffboarding {
-			f["kind"] = "must be onboarding or offboarding"
-		}
-		t.Kind = *in.Kind
-	}
-	setStr(&t.Title, in.Title)
-	if in.OwnerRole != nil {
-		if !models.Contains(models.OwnerRoles, *in.OwnerRole) {
-			f["ownerRole"] = "is not a valid owner"
-		}
-		t.OwnerRole = *in.OwnerRole
-	}
-	if in.OffsetDays != nil {
-		if *in.OffsetDays < -365 || *in.OffsetDays > 365 {
-			f["offsetDays"] = "must be within a year"
-		}
-		t.OffsetDays = *in.OffsetDays
-	}
-	if in.Mandatory != nil {
-		t.Mandatory = *in.Mandatory
-	}
-	if t.Title == "" {
-		f["title"] = "is required"
-	}
-	if t.Kind == "" {
-		f["kind"] = "is required"
-	}
-	if t.OwnerRole == "" {
-		f["ownerRole"] = "is required"
-	}
-	if err := f.err(); err != nil {
-		return err
-	}
-	if err := a.DB.Save(t).Error; err != nil {
-		return err
-	}
-	audit.Log(a.DB, act, clientIP(r), "template_save", "task_template", t.ID, t.Title)
-	httpx.JSON(w, status, toTemplateView(*t))
-	return nil
-}
-
-func (a *App) createTemplate(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
-	return a.saveTemplate(w, r, act, &models.TaskTemplate{}, http.StatusCreated)
-}
-
-func (a *App) updateTemplate(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
-	id, err := pathID(r)
-	if err != nil {
-		return err
-	}
-	var t models.TaskTemplate
-	if err := a.DB.First(&t, id).Error; err != nil {
-		return notFound(err, "template")
-	}
-	return a.saveTemplate(w, r, act, &t, http.StatusOK)
-}
-
-func (a *App) deleteTemplate(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
-	id, err := pathID(r)
-	if err != nil {
-		return err
-	}
-	var t models.TaskTemplate
-	if err := a.DB.First(&t, id).Error; err != nil {
-		return notFound(err, "template")
-	}
-	if err := a.DB.Delete(&t).Error; err != nil {
-		return err
-	}
-	audit.Log(a.DB, act, clientIP(r), "template_delete", "task_template", id, t.Title)
-	w.WriteHeader(http.StatusNoContent)
-	return nil
-}
-
 // ---- tasks ----
 
 type taskView struct {
@@ -252,6 +101,95 @@ func (a *App) listTasks(w http.ResponseWriter, r *http.Request, act *auth.Actor)
 	return nil
 }
 
+type taskInput struct {
+	EmployeeID *uint   `json:"employeeId"`
+	Kind       *string `json:"kind"`
+	Title      *string `json:"title"`
+	OwnerRole  *string `json:"ownerRole"`
+	DueDate    *string `json:"dueDate"`
+	Status     *string `json:"status"`
+	Notes      *string `json:"notes"`
+}
+
+// applyTask validates the input onto t. HR may change everything; a line manager only the status and notes.
+func (a *App) applyTask(t *models.Task, in *taskInput, hr bool) (fieldErrs, error) {
+	f := fieldErrs{}
+	if hr {
+		if in.EmployeeID != nil {
+			var n int64
+			a.DB.Model(&models.Employee{}).Where("id = ?", *in.EmployeeID).Count(&n)
+			if n == 0 {
+				f["employeeId"] = "choose who the task is for"
+			}
+			t.EmployeeID = *in.EmployeeID
+		}
+		if in.Kind != nil {
+			if *in.Kind != models.KindOnboarding && *in.Kind != models.KindOffboarding {
+				f["kind"] = "must be onboarding or offboarding"
+			}
+			t.Kind = *in.Kind
+		}
+		setStr(&t.Title, in.Title)
+		if in.OwnerRole != nil {
+			if !models.Contains(models.OwnerRoles, *in.OwnerRole) {
+				f["ownerRole"] = "is not a valid owner"
+			}
+			t.OwnerRole = *in.OwnerRole
+		}
+		setDate(f, "dueDate", &t.DueDate, in.DueDate)
+		if t.Title == "" {
+			f["title"] = "is required"
+		}
+		if t.EmployeeID == 0 {
+			f["employeeId"] = "choose who the task is for"
+		}
+	}
+	if in.Notes != nil {
+		t.Notes = trim(*in.Notes)
+	}
+	if in.Status != nil {
+		if !models.Contains(models.TaskStatuses, *in.Status) {
+			f["status"] = "is not a valid status"
+		} else if t.Status != *in.Status {
+			t.Status = *in.Status
+			if t.Status == models.TaskDone {
+				now := time.Now().UTC()
+				t.CompletedAt = &now
+			} else {
+				t.CompletedAt, t.CompletedByName = nil, ""
+			}
+		}
+	}
+	return f, nil
+}
+
+func (a *App) createTask(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
+	var in taskInput
+	if err := httpx.Decode(w, r, &in); err != nil {
+		return err
+	}
+	t := models.Task{OwnerRole: "hr", Status: models.TaskPending}
+	f, err := a.applyTask(&t, &in, true)
+	if err != nil {
+		return err
+	}
+	if t.Kind == "" {
+		f["kind"] = "is required"
+	}
+	if err := f.err(); err != nil {
+		return err
+	}
+	if t.Status == models.TaskDone {
+		t.CompletedByName = act.Name
+	}
+	if err := a.DB.Create(&t).Error; err != nil {
+		return err
+	}
+	audit.Log(a.DB, act, clientIP(r), "task_create", "task", t.ID, t.Kind+": "+t.Title)
+	httpx.JSON(w, http.StatusCreated, a.taskViews([]models.Task{t})[0])
+	return nil
+}
+
 func (a *App) updateTask(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
 	id, err := pathID(r)
 	if err != nil {
@@ -270,62 +208,43 @@ func (a *App) updateTask(w http.ResponseWriter, r *http.Request, act *auth.Actor
 			return httpx.Forbidden()
 		}
 	}
-	var in struct {
-		Status string  `json:"status"`
-		Notes  *string `json:"notes"`
-	}
+	var in taskInput
 	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	if !models.Contains(models.TaskStatuses, in.Status) {
-		return httpx.Invalid(map[string]string{"status": "is not a valid status"})
-	}
-	if in.Status == models.TaskNotApplicable && t.Mandatory {
-		return httpx.Invalid(map[string]string{"status": "mandatory tasks cannot be marked not applicable"})
-	}
-	updates := map[string]interface{}{"status": in.Status}
-	if in.Notes != nil {
-		updates["notes"] = trim(*in.Notes)
-	}
-	if in.Status == models.TaskDone {
-		updates["completed_at"] = time.Now().UTC()
-		updates["completed_by_name"] = act.Name
-	} else {
-		updates["completed_at"] = nil
-		updates["completed_by_name"] = ""
-	}
-	if err := a.DB.Model(&t).Updates(updates).Error; err != nil {
+	wasDone := t.Status == models.TaskDone
+	f, err := a.applyTask(&t, &in, act.IsHR())
+	if err != nil {
 		return err
 	}
-	audit.Log(a.DB, act, clientIP(r), "task_update", "task", t.ID, t.Title+" set to "+in.Status)
-	a.DB.First(&t, t.ID)
+	if err := f.err(); err != nil {
+		return err
+	}
+	if t.Status == models.TaskDone && !wasDone {
+		t.CompletedByName = act.Name
+	}
+	if err := a.DB.Save(&t).Error; err != nil {
+		return err
+	}
+	audit.Log(a.DB, act, clientIP(r), "task_update", "task", t.ID, t.Title+" ("+t.Status+")")
 	httpx.JSON(w, http.StatusOK, a.taskViews([]models.Task{t})[0])
 	return nil
 }
 
-func (a *App) startOnboarding(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
+func (a *App) deleteTask(w http.ResponseWriter, r *http.Request, act *auth.Actor) error {
 	id, err := pathID(r)
 	if err != nil {
 		return err
 	}
-	var e models.Employee
-	if err := a.DB.First(&e, id).Error; err != nil {
-		return notFound(err, "employee")
+	var t models.Task
+	if err := a.DB.First(&t, id).Error; err != nil {
+		return notFound(err, "task")
 	}
-	if e.StartDate == nil {
-		return httpx.Invalid(map[string]string{"startDate": "set the employee's start date first"})
-	}
-	var created int
-	err = a.DB.Transaction(func(tx *gorm.DB) error {
-		n, err := createTasks(tx, &e, models.KindOnboarding, *e.StartDate)
-		created = n
-		return err
-	})
-	if err != nil {
+	if err := a.DB.Delete(&t).Error; err != nil {
 		return err
 	}
-	audit.Log(a.DB, act, clientIP(r), "onboarding_start", "employee", e.ID, "onboarding tasks for "+e.FullName())
-	httpx.JSON(w, http.StatusOK, map[string]int{"created": created})
+	audit.Log(a.DB, act, clientIP(r), "task_delete", "task", id, t.Title)
+	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 
@@ -356,12 +275,7 @@ func (a *App) startOffboarding(w http.ResponseWriter, r *http.Request, act *auth
 	}
 	var created int
 	err = a.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&e).Updates(map[string]interface{}{"status": models.StatusOnNotice, "exit_date": *exit}).Error; err != nil {
-			return err
-		}
-		n, err := createTasks(tx, &e, models.KindOffboarding, *exit)
-		created = n
-		return err
+		return tx.Model(&e).Updates(map[string]interface{}{"status": models.StatusOnNotice, "exit_date": *exit}).Error
 	})
 	if err != nil {
 		return err

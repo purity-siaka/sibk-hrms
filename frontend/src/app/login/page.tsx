@@ -42,7 +42,7 @@ export default function LoginPage() {
         </div>
         <div>
           <h1 className="text-4xl font-bold leading-tight">
-            SIBK HR <span className="text-gold">Management System</span>
+            SIBK <span className="text-gold">Management System</span>
           </h1>
           <p className="mt-4 max-w-md text-[#DCE3FA]">
             One secure home for employee records, documents, recruitment and onboarding. Replacing paper files with a clear, auditable record.

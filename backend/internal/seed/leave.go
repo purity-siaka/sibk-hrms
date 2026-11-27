@@ -66,7 +66,6 @@ var leaveRows = []leaveRow{
 	{"Geoffrey Aricha", models.LeaveAnnual, "2026-11-13", "2026-11-16", 2, 8, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-17", "Annual Leave", "ok", "", ""},
 	{"Abdirahman Mohamed", models.LeaveAnnual, "2026-11-18", "2026-11-18", 1, 8, "Saad Rahman", models.LeavePending, "", "", "1", "", "", ""},
 	{"Moses Ngige", models.LeaveAnnual, "2026-11-20", "2026-11-23", 2, 4, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-19", "To handle personal matters that require my attention", "ok", "", ""},
-	{"Lucy Wairimu", models.LeaveTraining, "2026-12-01", "2026-12-03", 3, 7, "Saad Rahman", models.LeaveApproved, "Saad Rahman", "2026-11-24", "AML/CFT compliance refresher", "Approved.", "AML/CFT Refresher Course", "Kenya Bankers Association"},
 	{"Dennis Muasya", models.LeaveStudy, "2026-11-23", "2026-11-26", 4, 7, "Nicholas Kiganya", models.LeaveApproved, "Nicholas Kiganya", "2026-11-23", "To attend to exams", "Approved.", "", ""},
 }
 
